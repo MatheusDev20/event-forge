@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    // Node16 resolution so the "exports" map of @repo/contracts resolves its
+    // per-context subpaths, and because TypeScript 6 deprecates node10.
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    // The editor/test config spans src and test; the build config narrows
+    // rootDir to ./src so `dist/main.js` keeps its path.
+    "rootDir": ".",
+    "declaration": true,
+    "sourceMap": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "types": ["node", "jest"],
+    "skipLibCheck": true,
+    // Required by ts-jest under Node16 module resolution, and a good constraint
+    // anyway: every file must be compilable on its own.
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // The template relaxed these to get a scaffold compiling. This project
+    // models money, seat inventory and nullable relations, where an unchecked
+    // null is a correctness bug — so they are on.
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // TypeORM entity properties are assigned by the driver, not the
+    // constructor, so definite-assignment checking fights the ORM rather than
+    // finding bugs. Every other strict check stays on.
+    "strictPropertyInitialization": false
+  },
+  "include": ["src", "test"]
+}

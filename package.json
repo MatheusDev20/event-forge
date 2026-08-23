@@ -1,0 +1,35 @@
+{
+  "name": "event-forge",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "db:up": "pnpm --filter @repo/server run db:up",
+    "db:down": "pnpm --filter @repo/server run db:down",
+    "db:reset": "pnpm --filter @repo/server run db:reset",
+    "server:build:lambda": "pnpm --filter @repo/server run build:lambda",
+    "server:deploy": "bash apps/server/iac/terraform/deploy.sh",
+    "server:deploy:plan": "bash apps/server/iac/terraform/deploy.sh --plan",
+    "test": "turbo test",
+    "type-check": "turbo type-check",
+    "db:migrate": "pnpm --filter @repo/server run db:migrate",
+    "db:migrate:revert": "pnpm --filter @repo/server run db:migrate:revert",
+    "db:migrate:generate": "pnpm --filter @repo/server run db:migrate:generate",
+    "db:seed": "pnpm --filter @repo/server run db:seed",
+    "db:migrate:show": "pnpm --filter @repo/server run db:migrate:show",
+    "db:migrate:create": "pnpm --filter @repo/server run db:migrate:create",
+    "db:migrate:check": "pnpm --filter @repo/server run db:migrate:check",
+    "db:fresh": "pnpm --filter @repo/server run db:fresh"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.9",
+    "typescript": "6.0.3"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22.13"
+  }
+}

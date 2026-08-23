@@ -1,0 +1,28 @@
+name: event-forge
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-event_forge_db}
+    ports:
+      - '${DB_PORT:-5433}:5432'
+    volumes:
+      # Postgres 18+ images expect the mount at /var/lib/postgresql (not
+      # /var/lib/postgresql/data) so pg_upgrade can work across major versions.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-event_forge_db}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

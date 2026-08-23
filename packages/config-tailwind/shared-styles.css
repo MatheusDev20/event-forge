@@ -1,0 +1,352 @@
+/*
+ * Event-Forge design tokens — the single source of truth for every visual
+ * decision in the monorepo. See docs/adr/0004-design-system-tokens.md.
+ *
+ * Three layers, in order:
+ *
+ *   1. PRIMITIVES  raw scales, named for what they are (--ramp-brand-500).
+ *      Plain custom properties in :root, deliberately NOT in @theme, so
+ *      Tailwind generates no utilities for them. There is no `bg-brand-500`
+ *      class to reach for; that is the enforcement, not a lint rule.
+ *   2. SEMANTIC    roles, named for what they mean (--color-surface-raised).
+ *      Declared in @theme, so these — and only these — become utilities.
+ *      Theming is remapping this layer and nothing else.
+ *   3. COMPONENTS  live in @repo/ui and may reference layer 2 only.
+ *
+ * Tailwind v4 is configured in CSS. Consumers import this file and declare
+ * their own `@source` paths; automatic detection is off via `source(none)` so
+ * each package controls exactly what gets scanned.
+ */
+@import 'tailwindcss' source(none);
+
+/* Themes are swapped by writing [data-theme] on <html>. */
+@custom-variant dark ([data-theme='dark'] &);
+
+/* ==========================================================================
+ * Layer 1 — primitives
+ * ========================================================================== */
+
+:root {
+  /* Brand — violet. --ramp-brand-500 is the template's original #6c63ff. */
+  --ramp-brand-50: #f2f1ff;
+  --ramp-brand-100: #e6e4ff;
+  --ramp-brand-200: #cfcbff;
+  --ramp-brand-300: #b0a9ff;
+  --ramp-brand-400: #8d83ff;
+  --ramp-brand-500: #6c63ff;
+  --ramp-brand-600: #574ce0;
+  --ramp-brand-700: #443bb8;
+  --ramp-brand-800: #383193;
+  --ramp-brand-900: #2f2a75;
+  --ramp-brand-950: #1d1a4a;
+
+  /* Neutrals — cool grey, tuned to sit under the brand without clashing. */
+  --ramp-neutral-0: #ffffff;
+  --ramp-neutral-50: #f8f8fb;
+  --ramp-neutral-100: #f1f1f6;
+  --ramp-neutral-200: #e4e4ec;
+  --ramp-neutral-300: #cfcfdb;
+  --ramp-neutral-400: #a1a1b5;
+  --ramp-neutral-500: #74748c;
+  --ramp-neutral-600: #55556b;
+  --ramp-neutral-700: #414155;
+  --ramp-neutral-800: #2a2a38;
+  --ramp-neutral-900: #1b1b26;
+  --ramp-neutral-950: #111119;
+  --ramp-neutral-1000: #08080c;
+
+  /* Status ramps — only the stops the semantic layer actually consumes. */
+  --ramp-success-50: #ecfdf3;
+  --ramp-success-300: #6ee7b7;
+  --ramp-success-500: #10b981;
+  --ramp-success-600: #059669;
+  --ramp-success-900: #064e3b;
+  --ramp-success-950: #032b21;
+
+  --ramp-warning-50: #fffaeb;
+  --ramp-warning-300: #fcd34d;
+  --ramp-warning-500: #f59e0b;
+  --ramp-warning-600: #d97706;
+  --ramp-warning-900: #78350f;
+  --ramp-warning-950: #451f07;
+
+  --ramp-danger-50: #fef2f2;
+  --ramp-danger-300: #fca5a5;
+  --ramp-danger-500: #ef4444;
+  --ramp-danger-600: #dc2626;
+  --ramp-danger-900: #7f1d1d;
+  --ramp-danger-950: #450d0d;
+
+  --ramp-info-50: #eff6ff;
+  --ramp-info-300: #93c5fd;
+  --ramp-info-500: #3b82f6;
+  --ramp-info-600: #2563eb;
+  --ramp-info-900: #1e3a8a;
+  --ramp-info-950: #17255a;
+}
+
+/* ==========================================================================
+ * Layer 2 — semantic tokens (light is the base theme)
+ * ========================================================================== */
+
+@theme {
+  /* Wipe Tailwind's default palette. Utilities exist for roles only, so
+   * `bg-red-500` is not a thing anyone can accidentally write. */
+  --color-*: initial;
+
+  /* -- Surfaces ---------------------------------------------------------- */
+  --color-canvas: var(--ramp-neutral-50);
+  --color-surface: var(--ramp-neutral-0);
+  --color-surface-raised: var(--ramp-neutral-0);
+  --color-surface-sunken: var(--ramp-neutral-100);
+  --color-surface-hover: var(--ramp-neutral-100);
+  --color-surface-overlay: var(--ramp-neutral-0);
+  --color-scrim: color-mix(in oklab, var(--ramp-neutral-950) 45%, transparent);
+
+  /* -- Text -------------------------------------------------------------- */
+  --color-text: var(--ramp-neutral-900);
+  --color-text-muted: var(--ramp-neutral-600);
+  --color-text-subtle: var(--ramp-neutral-500);
+  --color-text-inverted: var(--ramp-neutral-0);
+  --color-text-brand: var(--ramp-brand-700);
+
+  /* -- Borders ----------------------------------------------------------- */
+  --color-border-subtle: var(--ramp-neutral-100);
+  --color-border: var(--ramp-neutral-200);
+  --color-border-strong: var(--ramp-neutral-300);
+  --color-border-brand: var(--ramp-brand-500);
+
+  /* -- Actions ----------------------------------------------------------- */
+  --color-action-primary: var(--ramp-brand-500);
+  --color-action-primary-hover: var(--ramp-brand-600);
+  --color-action-primary-active: var(--ramp-brand-700);
+  --color-action-primary-fg: var(--ramp-neutral-0);
+
+  --color-action-secondary: var(--ramp-neutral-0);
+  --color-action-secondary-hover: var(--ramp-neutral-100);
+  --color-action-secondary-active: var(--ramp-neutral-200);
+  --color-action-secondary-fg: var(--ramp-neutral-900);
+
+  --color-action-ghost-hover: var(--ramp-neutral-100);
+  --color-action-danger: var(--ramp-danger-600);
+  --color-action-danger-hover: var(--ramp-danger-500);
+  --color-action-danger-fg: var(--ramp-neutral-0);
+
+  --color-action-disabled: var(--ramp-neutral-200);
+  --color-action-disabled-fg: var(--ramp-neutral-400);
+
+  /* -- Focus ------------------------------------------------------------- */
+  --color-focus-ring: var(--ramp-brand-500);
+
+  /* -- Status ------------------------------------------------------------ */
+  --color-success-bg: var(--ramp-success-50);
+  --color-success-fg: var(--ramp-success-600);
+  --color-success-border: var(--ramp-success-300);
+  --color-success-solid: var(--ramp-success-500);
+
+  --color-warning-bg: var(--ramp-warning-50);
+  --color-warning-fg: var(--ramp-warning-600);
+  --color-warning-border: var(--ramp-warning-300);
+  --color-warning-solid: var(--ramp-warning-500);
+
+  --color-danger-bg: var(--ramp-danger-50);
+  --color-danger-fg: var(--ramp-danger-600);
+  --color-danger-border: var(--ramp-danger-300);
+  --color-danger-solid: var(--ramp-danger-500);
+
+  --color-info-bg: var(--ramp-info-50);
+  --color-info-fg: var(--ramp-info-600);
+  --color-info-border: var(--ramp-info-300);
+  --color-info-solid: var(--ramp-info-500);
+
+  --color-brand-bg: var(--ramp-brand-50);
+  --color-brand-fg: var(--ramp-brand-700);
+  --color-brand-border: var(--ramp-brand-200);
+
+  /* -- Typography -------------------------------------------------------- */
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, 'Roboto Mono',
+    monospace;
+
+  /* Modular scale, ratio ~1.2, with line-height and tracking bound to each
+   * step so type never has to be assembled by hand at the call site. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0.02em;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-xs--letter-spacing: 0.01em;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.625rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.875rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.375rem;
+  --text-3xl--letter-spacing: -0.02em;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.75rem;
+  --text-4xl--letter-spacing: -0.025em;
+  --text-5xl: 3rem;
+  --text-5xl--line-height: 3.25rem;
+  --text-5xl--letter-spacing: -0.03em;
+
+  /* -- Radii ------------------------------------------------------------- */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* -- Elevation --------------------------------------------------------- */
+  --shadow-xs: 0 1px 2px 0 var(--shadow-color-weak);
+  --shadow-sm: 0 1px 3px 0 var(--shadow-color-weak),
+    0 1px 2px -1px var(--shadow-color-weak);
+  --shadow-md: 0 4px 6px -1px var(--shadow-color),
+    0 2px 4px -2px var(--shadow-color-weak);
+  --shadow-lg: 0 10px 15px -3px var(--shadow-color),
+    0 4px 6px -4px var(--shadow-color-weak);
+  --shadow-xl: 0 20px 25px -5px var(--shadow-color),
+    0 8px 10px -6px var(--shadow-color-weak);
+
+  /* -- Motion ------------------------------------------------------------ */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-entrance: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Shadow colour is not a @theme token: it is consumed only by the shadow
+ * tokens above, and dark mode needs it far heavier than a light tint. */
+:root {
+  --shadow-color: rgb(27 27 38 / 0.1);
+  --shadow-color-weak: rgb(27 27 38 / 0.06);
+}
+
+/* ==========================================================================
+ * Layer 2 — dark theme
+ *
+ * Only the semantic layer is remapped. If a value needs changing here that is
+ * not listed, it means a component reached past the semantic layer.
+ * ========================================================================== */
+
+[data-theme='dark'] {
+  --color-canvas: var(--ramp-neutral-1000);
+  --color-surface: var(--ramp-neutral-950);
+  --color-surface-raised: var(--ramp-neutral-900);
+  --color-surface-sunken: var(--ramp-neutral-1000);
+  --color-surface-hover: var(--ramp-neutral-800);
+  --color-surface-overlay: var(--ramp-neutral-900);
+  --color-scrim: color-mix(in oklab, var(--ramp-neutral-1000) 65%, transparent);
+
+  --color-text: var(--ramp-neutral-100);
+  --color-text-muted: var(--ramp-neutral-400);
+  --color-text-subtle: var(--ramp-neutral-500);
+  --color-text-inverted: var(--ramp-neutral-950);
+  --color-text-brand: var(--ramp-brand-300);
+
+  --color-border-subtle: var(--ramp-neutral-900);
+  --color-border: var(--ramp-neutral-800);
+  --color-border-strong: var(--ramp-neutral-700);
+  --color-border-brand: var(--ramp-brand-400);
+
+  --color-action-primary: var(--ramp-brand-500);
+  --color-action-primary-hover: var(--ramp-brand-400);
+  --color-action-primary-active: var(--ramp-brand-300);
+  --color-action-primary-fg: var(--ramp-neutral-1000);
+
+  --color-action-secondary: var(--ramp-neutral-900);
+  --color-action-secondary-hover: var(--ramp-neutral-800);
+  --color-action-secondary-active: var(--ramp-neutral-700);
+  --color-action-secondary-fg: var(--ramp-neutral-100);
+
+  --color-action-ghost-hover: var(--ramp-neutral-800);
+  --color-action-danger: var(--ramp-danger-500);
+  --color-action-danger-hover: var(--ramp-danger-300);
+  --color-action-danger-fg: var(--ramp-neutral-1000);
+
+  --color-action-disabled: var(--ramp-neutral-800);
+  --color-action-disabled-fg: var(--ramp-neutral-600);
+
+  --color-focus-ring: var(--ramp-brand-400);
+
+  /* Status pairs invert: tinted backgrounds become deep, foregrounds light. */
+  --color-success-bg: var(--ramp-success-950);
+  --color-success-fg: var(--ramp-success-300);
+  --color-success-border: var(--ramp-success-900);
+
+  --color-warning-bg: var(--ramp-warning-950);
+  --color-warning-fg: var(--ramp-warning-300);
+  --color-warning-border: var(--ramp-warning-900);
+
+  --color-danger-bg: var(--ramp-danger-950);
+  --color-danger-fg: var(--ramp-danger-300);
+  --color-danger-border: var(--ramp-danger-900);
+
+  --color-info-bg: var(--ramp-info-950);
+  --color-info-fg: var(--ramp-info-300);
+  --color-info-border: var(--ramp-info-900);
+
+  --color-brand-bg: var(--ramp-brand-950);
+  --color-brand-fg: var(--ramp-brand-300);
+  --color-brand-border: var(--ramp-brand-800);
+
+  --shadow-color: rgb(0 0 0 / 0.5);
+  --shadow-color-weak: rgb(0 0 0 / 0.35);
+}
+
+/* ==========================================================================
+ * Base
+ * ========================================================================== */
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  [data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One focus treatment for the whole system, so no component invents its
+   * own and none can remove it. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-bg);
+    color: var(--color-text-brand);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

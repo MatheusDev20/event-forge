@@ -1,0 +1,8 @@
+/*
+ * Style entry point for @repo/ui. Consumers import this once (see
+ * apps/web/app/styles/global.css) and get the token layers plus the classes
+ * used by every component in this package.
+ */
+@import '@repo/tailwind-config/shared-styles.css';
+
+@source './';

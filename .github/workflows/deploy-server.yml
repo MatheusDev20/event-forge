@@ -1,0 +1,93 @@
+name: Deploy server (Lambda)
+
+on:
+  push:
+    branches: [main]
+    # Only redeploy when something that ends up in the bundle changed.
+    paths:
+      - "apps/server/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-server.yml"
+  workflow_dispatch:
+
+# Never let two applies race for the same state.
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Terraform apply
+    runs-on: ubuntu-latest
+    # Self-disabling in the template repo: with no TF_STATE_BUCKET repo variable
+    # set there is nothing to deploy to, so the job is skipped instead of failing
+    # on every push to main. A project cloned from this template sets the
+    # variable (repo Settings → Variables) and deploys start running.
+    if: vars.TF_STATE_BUCKET != ''
+    # To gate deploys behind a manual approval, create an environment named
+    # "production" (repo Settings → Environments) with a required reviewer, then
+    # add `environment: production` here. Referencing one that does not exist is
+    # what your editor flags as invalid.
+
+    env:
+      # Empty string makes main.tf fall back to the default credential chain
+      # (the AWS_* env vars below) instead of looking for a named profile that
+      # only exists on Matheus's machine.
+      TF_VAR_aws_profile: ""
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Lambda bundle
+        run: pnpm --filter @repo/server run build:lambda
+
+      - name: Verify bundle exists
+        run: test -f apps/server/dist-lambda/index.js
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.6
+
+      # Partial backend config: the bucket comes from a repo variable so the
+      # template itself stays free of account-specific names. No profile is
+      # passed — state access uses the AWS_* credentials above.
+      - name: Terraform init
+        working-directory: apps/server/iac/terraform
+        run: |
+          test -n "${TF_STATE_BUCKET}" || {
+            echo "::error::Repository variable TF_STATE_BUCKET is not set."
+            exit 1
+          }
+          terraform init -input=false \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="region=us-east-1"
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+
+      - name: Terraform apply
+        working-directory: apps/server/iac/terraform
+        run: terraform apply -input=false -auto-approve
+        env:
+          TF_VAR_service_version: ${{ github.sha }}
+
+      - name: Smoke test the deployed health endpoint
+        working-directory: apps/server/iac/terraform
+        run: |
+          URL="$(terraform output -raw function_url)"
+          echo "Function URL: ${URL}"
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 \
+            --retry-all-errors "${URL}health"

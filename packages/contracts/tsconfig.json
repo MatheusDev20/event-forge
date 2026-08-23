@@ -1,0 +1,16 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    // Node16 rather than the default node10 resolution: TypeScript 6 deprecates
+    // node10, and the server needs the "exports" map to resolve the per-context
+    // subpaths (@repo/contracts/catalog). No "type": "module" here, so this
+    // still emits CommonJS for Nest to require.
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

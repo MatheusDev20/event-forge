@@ -1,0 +1,12 @@
+# Local backend settings — copy to backend.hcl (gitignored) and fill in.
+#
+#   cp backend.hcl.example backend.hcl
+#
+# The bucket must already exist in the target AWS account. deploy.sh passes this
+# file to `terraform init` automatically when it is present.
+
+bucket = "replace-me-with-your-state-bucket"
+
+# Named profile used to READ/WRITE STATE. Must match the account the bucket
+# lives in. CI omits this and uses the runner's env credentials instead.
+profile = "matheus"

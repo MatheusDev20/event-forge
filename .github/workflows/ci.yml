@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch cancels the previous run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# The database is required, not opt-in, so every job below shares one config.
+# Port 5432 here — inside the runner nothing else occupies it, unlike the local
+# 5433 default.
+env:
+  DB_HOST: localhost
+  DB_PORT: "5432"
+  DB_USERNAME: postgres
+  DB_PASSWORD: postgres
+  DB_NAME: event_forge_db
+
+jobs:
+  verify:
+    name: Lint, build & test
+    runs-on: ubuntu-latest
+
+    services:
+      # Mirrors apps/server/docker-compose.yml.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: event_forge_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d event_forge_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Migrate
+        # Proves every migration applies to an empty database, which is the
+        # only way to know the `up` path still works from scratch.
+        run: pnpm db:migrate
+
+      - name: Check for schema drift
+        # CI runs against a database built purely from migrations, so it is the
+        # only place an entity change with no migration is visible.
+        run: pnpm db:migrate:check
+
+      - name: Unit tests
+        run: pnpm --filter @repo/server run test
+
+      - name: E2E tests
+        run: pnpm --filter @repo/server run test:e2e

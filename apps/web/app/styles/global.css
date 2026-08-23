@@ -1,0 +1,8 @@
+/*
+ * The design system is the only styling entry point: @repo/ui/styles.css pulls
+ * in the token layers and registers the package's own source files for class
+ * scanning, so this app never imports Tailwind or the tokens directly.
+ */
+@import '@repo/ui/styles.css';
+
+@source '../';
