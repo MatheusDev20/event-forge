@@ -12,6 +12,7 @@ import { EVENT_CATEGORIES, EVENT_STATUSES } from '../../domain/event';
 import type { EventCategory, EventStatus } from '../../domain/event';
 import { OrganizerEntity } from './organizer.entity';
 import { PriceTierEntity } from './price-tier.entity';
+import { SeatMapEntity } from './seat-map.entity';
 import { VenueEntity } from './venue.entity';
 
 /** `'a', 'b'` — for embedding a domain union in a CHECK constraint. */
@@ -35,6 +36,7 @@ const sqlList = (values: readonly string[]): string =>
 @Index('idx_events_category', ['category'])
 @Index('idx_events_venue_id', ['venueId'])
 @Index('idx_events_organizer_id', ['organizerId'])
+@Index('idx_events_seat_map_id', ['seatMapId'])
 @Check('events_status_check', `"status" IN (${sqlList(EVENT_STATUSES)})`)
 @Check('events_category_check', `"category" IN (${sqlList(EVENT_CATEGORIES)})`)
 @Check(
@@ -78,6 +80,18 @@ export class EventEntity {
   @Column({ type: 'uuid', name: 'organizer_id' })
   organizerId: string;
 
+  /**
+   * Which of the venue's layouts this event is using.
+   *
+   * Nullable, for now. Every seeded event has one, and an event cannot be
+   * published without one once Inventory exists — but that rule belongs in
+   * the domain, and making the column NOT NULL today would mean inventing a
+   * layout for rows that predate seat maps. It tightens in the migration that
+   * introduces publishing.
+   */
+  @Column({ type: 'uuid', name: 'seat_map_id', nullable: true })
+  seatMapId: string | null;
+
   @Column({ type: 'timestamptz', name: 'created_at', default: () => 'now()' })
   createdAt: Date;
 
@@ -97,6 +111,25 @@ export class EventEntity {
     foreignKeyConstraintName: 'events_organizer_id_fkey',
   })
   organizer: OrganizerEntity;
+
+  /**
+   * Composite on purpose: `(seat_map_id, venue_id)` references
+   * `seat_maps (id, venue_id)`, so an event physically cannot point at a
+   * layout belonging to some other venue — a mistake no application check
+   * catches reliably once two writers exist. `venue_id` carries two foreign
+   * keys, which Postgres is happy with, and the default MATCH SIMPLE means a
+   * NULL `seat_map_id` skips the check rather than failing it.
+   */
+  @ManyToOne(() => SeatMapEntity, { nullable: true })
+  @JoinColumn([
+    {
+      name: 'seat_map_id',
+      referencedColumnName: 'id',
+      foreignKeyConstraintName: 'events_seat_map_id_venue_id_fkey',
+    },
+    { name: 'venue_id', referencedColumnName: 'venueId' },
+  ])
+  seatMap: SeatMapEntity | null;
 
   @OneToMany(() => PriceTierEntity, (tier) => tier.event)
   priceTiers: PriceTierEntity[];

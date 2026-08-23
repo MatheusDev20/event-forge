@@ -5,6 +5,11 @@ import { join } from 'node:path';
 import { EventEntity } from '../modules/catalog/infrastructure/entities/event.entity';
 import { OrganizerEntity } from '../modules/catalog/infrastructure/entities/organizer.entity';
 import { PriceTierEntity } from '../modules/catalog/infrastructure/entities/price-tier.entity';
+import { PriceTierSectionEntity } from '../modules/catalog/infrastructure/entities/price-tier-section.entity';
+import { SeatEntity } from '../modules/catalog/infrastructure/entities/seat.entity';
+import { SeatMapEntity } from '../modules/catalog/infrastructure/entities/seat-map.entity';
+import { SeatRowEntity } from '../modules/catalog/infrastructure/entities/seat-row.entity';
+import { SectionEntity } from '../modules/catalog/infrastructure/entities/section.entity';
 import { VenueEntity } from '../modules/catalog/infrastructure/entities/venue.entity';
 
 loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
@@ -22,6 +27,11 @@ export const entities = [
   EventEntity,
   OrganizerEntity,
   PriceTierEntity,
+  PriceTierSectionEntity,
+  SeatEntity,
+  SeatMapEntity,
+  SeatRowEntity,
+  SectionEntity,
   VenueEntity,
 ];
 

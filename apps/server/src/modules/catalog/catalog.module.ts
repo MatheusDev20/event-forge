@@ -5,6 +5,11 @@ import { CatalogService } from './application/catalog.service';
 import { EventEntity } from './infrastructure/entities/event.entity';
 import { OrganizerEntity } from './infrastructure/entities/organizer.entity';
 import { PriceTierEntity } from './infrastructure/entities/price-tier.entity';
+import { PriceTierSectionEntity } from './infrastructure/entities/price-tier-section.entity';
+import { SeatEntity } from './infrastructure/entities/seat.entity';
+import { SeatMapEntity } from './infrastructure/entities/seat-map.entity';
+import { SeatRowEntity } from './infrastructure/entities/seat-row.entity';
+import { SectionEntity } from './infrastructure/entities/section.entity';
 import { VenueEntity } from './infrastructure/entities/venue.entity';
 import { EventsRepository } from './infrastructure/events.repository';
 
@@ -21,6 +26,11 @@ import { EventsRepository } from './infrastructure/events.repository';
       EventEntity,
       OrganizerEntity,
       PriceTierEntity,
+      PriceTierSectionEntity,
+      SeatEntity,
+      SeatMapEntity,
+      SeatRowEntity,
+      SectionEntity,
       VenueEntity,
     ]),
   ],

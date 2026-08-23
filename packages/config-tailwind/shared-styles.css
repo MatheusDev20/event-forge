@@ -27,33 +27,41 @@
  * ========================================================================== */
 
 :root {
-  /* Brand — violet. --ramp-brand-500 is the template's original #6c63ff. */
-  --ramp-brand-50: #f2f1ff;
-  --ramp-brand-100: #e6e4ff;
-  --ramp-brand-200: #cfcbff;
-  --ramp-brand-300: #b0a9ff;
-  --ramp-brand-400: #8d83ff;
-  --ramp-brand-500: #6c63ff;
-  --ramp-brand-600: #574ce0;
-  --ramp-brand-700: #443bb8;
-  --ramp-brand-800: #383193;
-  --ramp-brand-900: #2f2a75;
-  --ramp-brand-950: #1d1a4a;
+  /* Brand — blue, from the Event Forge header handoff. Three stops are pinned
+   * to values the design names directly: 500 is the wordmark accent (#6b8ae6),
+   * 800 the primary action fill and 700 its hover. That pinning is why the
+   * 600→700 step is wider than its neighbours; the ramp stays monotonic. */
+  --ramp-brand-50: #f1f5fd;
+  --ramp-brand-100: #e0e9fa;
+  --ramp-brand-200: #c5d5f5;
+  --ramp-brand-300: #a5baef;
+  --ramp-brand-400: #86a1e9;
+  --ramp-brand-500: #6b8ae6;
+  --ramp-brand-600: #4f6bd0;
+  --ramp-brand-700: #24499f;
+  --ramp-brand-800: #1b3a8f;
+  --ramp-brand-900: #172f72;
+  --ramp-brand-950: #101e47;
 
-  /* Neutrals — cool grey, tuned to sit under the brand without clashing. */
+  /* Neutrals — cool blue-grey, tuned to sit under the brand without clashing.
+   * The dark end is taken from the header handoff: 1000 is the page canvas,
+   * 950 the header bar, 900 the search field, 850 the header's bottom hairline
+   * and 800 the control borders. 850 exists only because the design draws that
+   * hairline lighter than any surface but darker than a control border. */
   --ramp-neutral-0: #ffffff;
-  --ramp-neutral-50: #f8f8fb;
-  --ramp-neutral-100: #f1f1f6;
-  --ramp-neutral-200: #e4e4ec;
-  --ramp-neutral-300: #cfcfdb;
-  --ramp-neutral-400: #a1a1b5;
-  --ramp-neutral-500: #74748c;
-  --ramp-neutral-600: #55556b;
-  --ramp-neutral-700: #414155;
-  --ramp-neutral-800: #2a2a38;
-  --ramp-neutral-900: #1b1b26;
-  --ramp-neutral-950: #111119;
-  --ramp-neutral-1000: #08080c;
+  --ramp-neutral-50: #f8f9fb;
+  --ramp-neutral-100: #f4f5f8;
+  --ramp-neutral-200: #e3e6ee;
+  --ramp-neutral-300: #d8dbe4;
+  --ramp-neutral-400: #9ea4b6;
+  --ramp-neutral-500: #71768a;
+  --ramp-neutral-600: #565b6d;
+  --ramp-neutral-700: #414759;
+  --ramp-neutral-800: #2a2e3a;
+  --ramp-neutral-850: #22252f;
+  --ramp-neutral-900: #1a1d26;
+  --ramp-neutral-950: #12141b;
+  --ramp-neutral-1000: #0c0d11;
 
   /* Status ramps — only the stops the semantic layer actually consumes. */
   --ramp-success-50: #ecfdf3;
@@ -114,12 +122,14 @@
   --color-border-subtle: var(--ramp-neutral-100);
   --color-border: var(--ramp-neutral-200);
   --color-border-strong: var(--ramp-neutral-300);
-  --color-border-brand: var(--ramp-brand-500);
+  --color-border-brand: var(--ramp-brand-600);
 
   /* -- Actions ----------------------------------------------------------- */
-  --color-action-primary: var(--ramp-brand-500);
-  --color-action-primary-hover: var(--ramp-brand-600);
-  --color-action-primary-active: var(--ramp-brand-700);
+  /* The handoff fills primary actions with the deep navy (brand-800) rather
+   * than the accent, so light mode darkens on hover and dark mode lightens. */
+  --color-action-primary: var(--ramp-brand-800);
+  --color-action-primary-hover: var(--ramp-brand-900);
+  --color-action-primary-active: var(--ramp-brand-950);
   --color-action-primary-fg: var(--ramp-neutral-0);
 
   --color-action-secondary: var(--ramp-neutral-0);
@@ -163,6 +173,18 @@
   --color-brand-fg: var(--ramp-brand-700);
   --color-brand-border: var(--ramp-brand-200);
 
+  /* -- On media ---------------------------------------------------------- */
+  /* Content laid over artwork sits on a dark veil in both themes, because the
+   * veil belongs to the image treatment and not to the surface beneath it.
+   * This is the one group the dark theme deliberately does not remap: flipping
+   * it would put dark text on a dark photograph. Opacity is applied at the
+   * call site (`bg-media-veil/55`), which is why only the solids live here. */
+  --color-media-veil: var(--ramp-neutral-1000);
+  --color-on-media: var(--ramp-neutral-0);
+  --color-on-media-muted: var(--ramp-neutral-300);
+  --color-on-media-subtle: var(--ramp-neutral-400);
+  --color-on-media-accent: var(--ramp-brand-500);
+
   /* -- Typography -------------------------------------------------------- */
   --font-sans:
     var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
@@ -170,6 +192,10 @@
   --font-mono:
     var(--font-geist-mono), ui-monospace, SFMono-Regular, 'Roboto Mono',
     monospace;
+  /* Display face — the wordmark and control labels in the header handoff. */
+  --font-display:
+    var(--font-space-grotesk), 'Space Grotesk', var(--font-geist-sans),
+    ui-sans-serif, system-ui, sans-serif;
 
   /* Modular scale, ratio ~1.2, with line-height and tracking bound to each
    * step so type never has to be assembled by hand at the call site. */
@@ -212,13 +238,16 @@
 
   /* -- Elevation --------------------------------------------------------- */
   --shadow-xs: 0 1px 2px 0 var(--shadow-color-weak);
-  --shadow-sm: 0 1px 3px 0 var(--shadow-color-weak),
+  --shadow-sm:
+    0 1px 3px 0 var(--shadow-color-weak),
     0 1px 2px -1px var(--shadow-color-weak);
-  --shadow-md: 0 4px 6px -1px var(--shadow-color),
-    0 2px 4px -2px var(--shadow-color-weak);
-  --shadow-lg: 0 10px 15px -3px var(--shadow-color),
+  --shadow-md:
+    0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color-weak);
+  --shadow-lg:
+    0 10px 15px -3px var(--shadow-color),
     0 4px 6px -4px var(--shadow-color-weak);
-  --shadow-xl: 0 20px 25px -5px var(--shadow-color),
+  --shadow-xl:
+    0 20px 25px -5px var(--shadow-color),
     0 8px 10px -6px var(--shadow-color-weak);
 
   /* -- Motion ------------------------------------------------------------ */
@@ -245,7 +274,10 @@
   --color-canvas: var(--ramp-neutral-1000);
   --color-surface: var(--ramp-neutral-950);
   --color-surface-raised: var(--ramp-neutral-900);
-  --color-surface-sunken: var(--ramp-neutral-1000);
+  /* Sunken reads lighter than its surface here, not darker: the canvas is
+   * already at the bottom of the ramp, so a recessed field (the header search)
+   * can only be drawn by lifting it. */
+  --color-surface-sunken: var(--ramp-neutral-900);
   --color-surface-hover: var(--ramp-neutral-800);
   --color-surface-overlay: var(--ramp-neutral-900);
   --color-scrim: color-mix(in oklab, var(--ramp-neutral-1000) 65%, transparent);
@@ -254,17 +286,18 @@
   --color-text-muted: var(--ramp-neutral-400);
   --color-text-subtle: var(--ramp-neutral-500);
   --color-text-inverted: var(--ramp-neutral-950);
-  --color-text-brand: var(--ramp-brand-300);
+  --color-text-brand: var(--ramp-brand-500);
 
-  --color-border-subtle: var(--ramp-neutral-900);
+  --color-border-subtle: var(--ramp-neutral-850);
   --color-border: var(--ramp-neutral-800);
   --color-border-strong: var(--ramp-neutral-700);
-  --color-border-brand: var(--ramp-brand-400);
+  --color-border-brand: var(--ramp-brand-500);
 
-  --color-action-primary: var(--ramp-brand-500);
-  --color-action-primary-hover: var(--ramp-brand-400);
-  --color-action-primary-active: var(--ramp-brand-300);
-  --color-action-primary-fg: var(--ramp-neutral-1000);
+  /* Navy is dark enough that its label stays white in both themes. */
+  --color-action-primary: var(--ramp-brand-800);
+  --color-action-primary-hover: var(--ramp-brand-700);
+  --color-action-primary-active: var(--ramp-brand-600);
+  --color-action-primary-fg: var(--ramp-neutral-0);
 
   --color-action-secondary: var(--ramp-neutral-900);
   --color-action-secondary-hover: var(--ramp-neutral-800);

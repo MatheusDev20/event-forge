@@ -5,12 +5,14 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
 import { CURRENCIES } from '../../domain/event';
 import type { Currency } from '../../domain/event';
 import { EventEntity } from './event.entity';
+import { PriceTierSectionEntity } from './price-tier-section.entity';
 
 @Entity({ name: 'price_tiers' })
 @Index('idx_price_tiers_event_id', ['eventId'])
@@ -49,4 +51,7 @@ export class PriceTierEntity {
     foreignKeyConstraintName: 'price_tiers_event_id_fkey',
   })
   event: EventEntity;
+
+  @OneToMany(() => PriceTierSectionEntity, (link) => link.priceTier)
+  sections: PriceTierSectionEntity[];
 }

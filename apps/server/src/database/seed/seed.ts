@@ -2,6 +2,11 @@ import 'reflect-metadata';
 import { EventEntity } from '../../modules/catalog/infrastructure/entities/event.entity';
 import { OrganizerEntity } from '../../modules/catalog/infrastructure/entities/organizer.entity';
 import { PriceTierEntity } from '../../modules/catalog/infrastructure/entities/price-tier.entity';
+import { PriceTierSectionEntity } from '../../modules/catalog/infrastructure/entities/price-tier-section.entity';
+import { SeatEntity } from '../../modules/catalog/infrastructure/entities/seat.entity';
+import { SeatMapEntity } from '../../modules/catalog/infrastructure/entities/seat-map.entity';
+import { SeatRowEntity } from '../../modules/catalog/infrastructure/entities/seat-row.entity';
+import { SectionEntity } from '../../modules/catalog/infrastructure/entities/section.entity';
 import { VenueEntity } from '../../modules/catalog/infrastructure/entities/venue.entity';
 import type {
   EventCategory,
@@ -30,6 +35,92 @@ const VENUES = [
   { name: 'Mineirão', city: 'Belo Horizonte', country: 'BR' },
   { name: 'Pedreira Paulo Leminski', city: 'Curitiba', country: 'BR' },
   { name: 'Concha Acústica', city: 'Salvador', country: 'BR' },
+];
+
+/**
+ * One layout per venue, index-aligned with VENUES above.
+ *
+ * The mix is the point: a fully seated theatre, two mixed rooms, and stadiums
+ * that sell nothing but counters. Slice 2 load-tests seated contention against
+ * general-admission contention, and it needs both shapes in the same database
+ * to do it.
+ *
+ * Seated sections are kept small — hundreds, not tens of thousands. A real
+ * Mineirão seat map is 60k rows of fixture data that slow every `db:fresh`
+ * down and teach nothing that 288 seats do not.
+ */
+type SectionSeed =
+  | { name: string; kind: 'seated'; rows: number; seatsPerRow: number }
+  | { name: string; kind: 'general_admission'; capacity: number };
+
+type LayoutSeed = { name: string; sections: SectionSeed[] };
+
+const seated = (
+  name: string,
+  rows: number,
+  seatsPerRow: number,
+): SectionSeed => ({ name, kind: 'seated', rows, seatsPerRow });
+
+const ga = (name: string, capacity: number): SectionSeed => ({
+  name,
+  kind: 'general_admission',
+  capacity,
+});
+
+const LAYOUTS: LayoutSeed[] = [
+  {
+    name: 'Modo Show',
+    sections: [
+      ga('Pista', 15000),
+      ga('Pista Premium', 4000),
+      ga('Cadeira Superior', 12000),
+      ga('Camarote', 600),
+    ],
+  },
+  {
+    name: 'Configuração Padrão',
+    sections: [
+      ga('Pista', 3000),
+      seated('Mezanino', 8, 20),
+      ga('Camarote', 200),
+    ],
+  },
+  {
+    name: 'Sala Principal',
+    sections: [
+      seated('Plateia', 10, 18),
+      seated('Balcão', 6, 14),
+      seated('Frisas', 2, 8),
+    ],
+  },
+  {
+    name: 'Modo Arena',
+    sections: [
+      ga('Pista', 8000),
+      ga('Cadeira Inferior', 6000),
+      ga('Cadeira Superior', 4000),
+    ],
+  },
+  {
+    name: 'Plateia e Mezanino',
+    sections: [
+      ga('Plateia', 1200),
+      seated('Mezanino', 6, 16),
+      ga('Camarote', 120),
+    ],
+  },
+  {
+    name: 'Modo Futebol',
+    sections: [ga('Geral', 30000), ga('Superior', 15000), ga('Camarote', 800)],
+  },
+  {
+    name: 'Campo Aberto',
+    sections: [ga('Campo', 20000), ga('Área VIP', 3000), ga('Camarote', 1000)],
+  },
+  {
+    name: 'Anfiteatro',
+    sections: [seated('Arquibancada', 12, 24), ga('Área Plana', 2000)],
+  },
 ];
 
 const ORGANIZERS = [
@@ -409,6 +500,34 @@ const EVENTS: EventSeed[] = [
   },
 ];
 
+/** A, B, ... Z, AA, AB — enough for any row count a seed will produce. */
+function rowLabel(index: number): string {
+  let label = '';
+  let remaining = index;
+
+  do {
+    label = String.fromCharCode(65 + (remaining % 26)) + label;
+    remaining = Math.floor(remaining / 26) - 1;
+  } while (remaining >= 0);
+
+  return label;
+}
+
+/**
+ * Spreads an event's sections across its price tiers by position: cheapest tier
+ * gets the first sections, most expensive the last. Arbitrary, and deliberately
+ * so — the seed's tier names and the venue's section names come from different
+ * lists and only sometimes agree. What matters is the invariant it guarantees,
+ * because that one is real: every section is covered by exactly one tier.
+ */
+function tierIndexForSection(
+  sectionIndex: number,
+  sectionCount: number,
+  tierCount: number,
+): number {
+  return Math.floor((sectionIndex * tierCount) / sectionCount);
+}
+
 function slugify(title: string): string {
   return title
     .normalize('NFD')
@@ -429,10 +548,13 @@ async function seed(): Promise<void> {
   await dataSource.initialize();
 
   try {
-    // CASCADE covers price_tiers; RESTART IDENTITY is harmless with uuid keys
-    // and keeps the statement correct if a serial column is ever added.
+    // CASCADE would reach the dependent tables on its own; naming them keeps
+    // the statement honest about what this script owns. RESTART IDENTITY is
+    // harmless with uuid keys and stays correct if a serial column appears.
     await dataSource.query(
-      `TRUNCATE TABLE "price_tiers", "events", "venues", "organizers" RESTART IDENTITY CASCADE`,
+      `TRUNCATE TABLE "price_tier_sections", "price_tiers", "seats", "seat_rows",
+       "sections", "seat_maps", "events", "venues", "organizers"
+       RESTART IDENTITY CASCADE`,
     );
 
     const organizers = await dataSource
@@ -440,6 +562,66 @@ async function seed(): Promise<void> {
       .save(ORGANIZERS.map((name) => ({ name })));
 
     const venues = await dataSource.getRepository(VenueEntity).save(VENUES);
+
+    const seatMaps = await dataSource.getRepository(SeatMapEntity).save(
+      LAYOUTS.map((layout, index) => ({
+        venueId: venues[index].id,
+        name: layout.name,
+      })),
+    );
+
+    /**
+     * Sections, rows and seats are saved level by level, each level zipped back
+     * to the fixture that produced it by position — `save()` returns rows in
+     * the order it was given them, which is what makes the next level's foreign
+     * key available without a second query.
+     */
+    const sectionSeeds = LAYOUTS.flatMap((layout, venueIndex) =>
+      layout.sections.map((section, order) => ({ section, venueIndex, order })),
+    );
+
+    const sections = await dataSource.getRepository(SectionEntity).save(
+      sectionSeeds.map(({ section, venueIndex, order }) => ({
+        seatMapId: seatMaps[venueIndex].id,
+        name: section.name,
+        kind: section.kind,
+        capacity:
+          section.kind === 'general_admission' ? section.capacity : null,
+        displayOrder: order,
+      })),
+    );
+
+    const rowInserts: {
+      sectionId: string;
+      label: string;
+      displayOrder: number;
+    }[] = [];
+    const seatsInRow: number[] = [];
+
+    sectionSeeds.forEach(({ section }, index) => {
+      if (section.kind !== 'seated') return;
+
+      for (let row = 0; row < section.rows; row += 1) {
+        rowInserts.push({
+          sectionId: sections[index].id,
+          label: rowLabel(row),
+          displayOrder: row,
+        });
+        seatsInRow.push(section.seatsPerRow);
+      }
+    });
+
+    const rows = await dataSource.getRepository(SeatRowEntity).save(rowInserts);
+
+    const seats = await dataSource.getRepository(SeatEntity).save(
+      rows.flatMap((row, index) =>
+        Array.from({ length: seatsInRow[index] }, (_, seat) => ({
+          rowId: row.id,
+          label: String(seat + 1),
+          displayOrder: seat,
+        })),
+      ),
+    );
 
     const events = await dataSource.getRepository(EventEntity).save(
       EVENTS.map((seed) => ({
@@ -454,10 +636,11 @@ async function seed(): Promise<void> {
         heroImageUrl: null,
         venueId: venues[seed.venue].id,
         organizerId: organizers[seed.organizer].id,
+        seatMapId: seatMaps[seed.venue].id,
       })),
     );
 
-    await dataSource.getRepository(PriceTierEntity).save(
+    const tiers = await dataSource.getRepository(PriceTierEntity).save(
       EVENTS.flatMap((seed, index) =>
         seed.tiers.map(([name, amount]) => ({
           eventId: events[index].id,
@@ -468,6 +651,36 @@ async function seed(): Promise<void> {
       ),
     );
 
+    const sectionsByVenue = LAYOUTS.map((_layout, venueIndex) =>
+      sections.filter(
+        (_section, index) => sectionSeeds[index].venueIndex === venueIndex,
+      ),
+    );
+    const eventIndexOfTier = EVENTS.flatMap((seed, index) =>
+      seed.tiers.map(() => index),
+    );
+
+    const tierSections = EVENTS.flatMap((seed, eventIndex) => {
+      const eventTiers = tiers
+        .filter((_tier, index) => eventIndexOfTier[index] === eventIndex)
+        .sort((a, b) => a.priceAmountMinor - b.priceAmountMinor);
+      const venueSections = sectionsByVenue[seed.venue];
+
+      return venueSections.map((section, sectionIndex) => ({
+        priceTierId:
+          eventTiers[
+            tierIndexForSection(
+              sectionIndex,
+              venueSections.length,
+              eventTiers.length,
+            )
+          ].id,
+        sectionId: section.id,
+      }));
+    });
+
+    await dataSource.getRepository(PriceTierSectionEntity).save(tierSections);
+
     const publicCount = EVENTS.filter((event) =>
       ['published', 'on_sale'].includes(event.status),
     ).length;
@@ -475,6 +688,11 @@ async function seed(): Promise<void> {
     console.log(
       `Seeded ${organizers.length} organizers, ${venues.length} venues, ` +
         `${events.length} events (${publicCount} publicly visible).`,
+    );
+    console.log(
+      `Seat maps: ${seatMaps.length} layouts, ${sections.length} sections, ` +
+        `${rows.length} rows, ${seats.length} seats, ` +
+        `${tierSections.length} tier-to-section mappings.`,
     );
   } finally {
     await dataSource.destroy();

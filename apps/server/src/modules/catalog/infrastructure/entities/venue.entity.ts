@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { EventEntity } from './event.entity';
+import { SeatMapEntity } from './seat-map.entity';
 
 @Entity({ name: 'venues' })
 @Index('idx_venues_city', ['city'])
@@ -28,4 +29,7 @@ export class VenueEntity {
 
   @OneToMany(() => EventEntity, (event) => event.venue)
   events: EventEntity[];
+
+  @OneToMany(() => SeatMapEntity, (seatMap) => seatMap.venue)
+  seatMaps: SeatMapEntity[];
 }

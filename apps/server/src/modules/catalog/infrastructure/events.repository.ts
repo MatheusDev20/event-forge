@@ -3,7 +3,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, type SelectQueryBuilder } from 'typeorm';
 import { PUBLICLY_VISIBLE_STATUSES } from '../domain/event';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
+import { INITIAL_EVENT_STATUS } from '../domain/new-event';
+import type { NewEvent, ReferenceCheck } from '../domain/new-event';
 import { EventEntity } from './entities/event.entity';
+import { OrganizerEntity } from './entities/organizer.entity';
+import { PriceTierEntity } from './entities/price-tier.entity';
+import { PriceTierSectionEntity } from './entities/price-tier-section.entity';
+import { SeatMapEntity } from './entities/seat-map.entity';
+import { SectionEntity } from './entities/section.entity';
+import { VenueEntity } from './entities/venue.entity';
 
 /**
  * Cheapest tier for an event, as a scalar subquery. Kept as a constant because
@@ -77,6 +85,96 @@ export class EventsRepository {
     items.sort((a, b) => position.get(a.id)! - position.get(b.id)!);
 
     return { items, total };
+  }
+
+  /** Any status, including drafts. For reading back what was just created. */
+  findById(id: string): Promise<EventEntity | null> {
+    return this.events.findOne({ where: { id }, relations: LIST_RELATIONS });
+  }
+
+  /**
+   * Checks everything a create request points at, in one round of queries.
+   *
+   * Two of these the database would catch on its own — a missing venue or
+   * organizer fails the foreign key. The third it cannot: nothing stops
+   * `price_tier_sections` referencing a section from an entirely different
+   * venue's layout, because that table only ever sees section ids. So the check
+   * lives here, and it is the reason this method exists rather than letting the
+   * insert fail and translating the error.
+   */
+  async checkReferences(draft: NewEvent): Promise<ReferenceCheck> {
+    const manager = this.events.manager;
+    const sectionIds = [
+      ...new Set(draft.priceTiers.flatMap((tier) => tier.sectionIds)),
+    ];
+
+    const [venueExists, organizerExists, seatMapBelongsToVenue, ownSections] =
+      await Promise.all([
+        manager.getRepository(VenueEntity).existsBy({ id: draft.venueId }),
+        manager
+          .getRepository(OrganizerEntity)
+          .existsBy({ id: draft.organizerId }),
+        manager
+          .getRepository(SeatMapEntity)
+          .existsBy({ id: draft.seatMapId, venueId: draft.venueId }),
+        manager.getRepository(SectionEntity).find({
+          where: { id: In(sectionIds), seatMapId: draft.seatMapId },
+          select: { id: true },
+        }),
+      ]);
+
+    const owned = new Set(ownSections.map((section) => section.id));
+
+    return {
+      venueExists,
+      organizerExists,
+      seatMapBelongsToVenue,
+      foreignSectionIds: sectionIds.filter((id) => !owned.has(id)),
+    };
+  }
+
+  /**
+   * The event, its tiers, and the tier-to-section mapping, in one transaction.
+   *
+   * All or nothing is the only sensible boundary here: an event whose tiers
+   * half-committed is priced wrongly rather than incompletely, and no read
+   * anywhere would reveal it.
+   */
+  create(draft: NewEvent): Promise<string> {
+    return this.events.manager.transaction(async (manager) => {
+      const event = await manager.getRepository(EventEntity).save({
+        slug: draft.slug,
+        title: draft.title,
+        description: draft.description,
+        category: draft.category,
+        status: INITIAL_EVENT_STATUS,
+        startsAt: draft.startsAt,
+        endsAt: draft.endsAt,
+        doorsOpenAt: draft.doorsOpenAt,
+        heroImageUrl: draft.heroImageUrl,
+        venueId: draft.venueId,
+        organizerId: draft.organizerId,
+        seatMapId: draft.seatMapId,
+      });
+
+      for (const tier of draft.priceTiers) {
+        const saved = await manager.getRepository(PriceTierEntity).save({
+          eventId: event.id,
+          name: tier.name,
+          priceAmountMinor: tier.amountMinor,
+          priceCurrency: tier.currency,
+        });
+
+        await manager.getRepository(PriceTierSectionEntity).save(
+          tier.sectionIds.map((sectionId) => ({
+            priceTierId: saved.id,
+            sectionId,
+          })),
+        );
+      }
+
+      return event.id;
+    });
   }
 
   findPublicBySlug(slug: string): Promise<EventEntity | null> {

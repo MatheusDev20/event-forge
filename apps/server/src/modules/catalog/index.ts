@@ -9,4 +9,11 @@
 export { CatalogModule } from './catalog.module';
 export { CatalogService, type EventPage } from './application/catalog.service';
 export type { EventCategory, EventStatus } from './domain/event';
+export {
+  SECTION_KINDS,
+  seatMapCapacity,
+  sectionCapacity,
+  type SectionCapacity,
+  type SectionKind,
+} from './domain/seat-map';
 export type { ListEventsCriteria } from './domain/list-events-criteria';
