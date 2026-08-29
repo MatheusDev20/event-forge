@@ -51,6 +51,34 @@ export function listEvents(
   });
 }
 
+/**
+ * How many events the home page carousel shows.
+ *
+ * Five, because the carousel is a rotation rather than a listing: at 7s a
+ * slide that comes full circle in about 35 seconds, and five dot indicators
+ * stay countable at a glance. Twelve would take nearly a minute and a half to
+ * come back round, which makes the tail slides decoration nobody sees.
+ */
+export const FEATURED_EVENT_COUNT = 5;
+
+/**
+ * The home page carousel's feed.
+ *
+ * "Featured" means soonest-first for now. There is no editorial flag in the
+ * data model, and inventing one here would put a product decision somewhere
+ * the organizer console could never reach it — Slice 5's problem. Sorting by
+ * date at least guarantees the banner is never advertising something that has
+ * already happened.
+ */
+export function listFeaturedEvents(): Promise<ListEventsResponse> {
+  return listEvents(
+    listEventsQuerySchema.parse({
+      sort: 'date_asc',
+      pageSize: FEATURED_EVENT_COUNT,
+    }),
+  );
+}
+
 export function getEvent(slug: string): Promise<EventDetail> {
   return apiGet(`/events/${encodeURIComponent(slug)}`, eventDetailSchema, {
     revalidate: CATALOG_REVALIDATE_SECONDS,

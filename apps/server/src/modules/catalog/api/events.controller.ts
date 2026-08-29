@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,12 +8,17 @@ import {
   Param,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   createEventSchema,
   eventIdSchema,
   eventSlugSchema,
   listEventsQuerySchema,
+  HERO_IMAGE_FIELD,
+  HERO_IMAGE_MAX_BYTES,
   type CreateEventInput,
   type EventDetail,
   type ListEventsQuery,
@@ -21,8 +27,24 @@ import {
 import { ZodValidationPipe } from '../../../shared/http/zod-validation.pipe';
 import { CatalogService } from '../application/catalog.service';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
+import type { HeroImageUpload } from '../domain/hero-image';
 import type { NewEvent } from '../domain/new-event';
 import { toEventDetail, toEventSummary } from './event.mapper';
+
+/**
+ * The slice of multer's file object this endpoint uses.
+ *
+ * Declared here rather than pulled from `Express.Multer.File`, which lives in
+ * `@types/multer` — a dependency this project would otherwise be adding for
+ * one type. Naming only what is read also documents the contract honestly:
+ * every field below is written by the client, and `domain/hero-image.ts`
+ * treats all three accordingly.
+ */
+type MultipartFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+};
 
 @Controller('events')
 export class EventsController {
@@ -86,6 +108,56 @@ export class EventsController {
     return toEventDetail(await this.catalog.publishEvent(id));
   }
 
+  /**
+   * Replaces the event's hero image — the artwork behind its page.
+   *
+   * `POST`, not `PATCH`: the request body is the image itself, not a partial
+   * event, and there is no JSON document here to merge into anything. It is a
+   * sub-resource being written, so it gets its own route, the same way
+   * publishing does.
+   *
+   * The interceptor is given no `storage`, which means multer's default —
+   * memory. That is the point: the file has to be judged before it is allowed
+   * to exist anywhere, and disk storage would have written it first and left
+   * the cleanup of every rejected upload to us. `limits` is what keeps that
+   * safe, because a memory buffer with no ceiling is a way to exhaust the
+   * process.
+   *
+   * `limits` is the only validation here. Format is decided in the domain, on
+   * the bytes — a `fileFilter` could only re-read the same client-written
+   * headers, one layer earlier, and having two places answer "is this a JPEG"
+   * is how they end up disagreeing.
+   *
+   * Declared above `@Get(':slug')` by convention, like `publish`.
+   *
+   * Open to anyone, like the rest of this controller. Authorization is Slice 4.
+   */
+  @Post(':id/hero-image')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor(HERO_IMAGE_FIELD, {
+      // `files: 1` matters as much as the size cap: without it a request can
+      // send the field repeatedly and pay for N buffers to have N-1 discarded.
+      limits: { fileSize: HERO_IMAGE_MAX_BYTES, files: 1 },
+    }),
+  )
+  async setHeroImage(
+    @Param('id', new ZodValidationPipe(eventIdSchema)) id: string,
+    @UploadedFile() file: MultipartFile | undefined,
+  ): Promise<EventDetail> {
+    // No file at all is a malformed request rather than a rejected image, and
+    // the domain never sees it — there are no bytes to have an opinion about.
+    if (!file) {
+      throw new BadRequestException(
+        `Expected a multipart/form-data request with an image in the "${HERO_IMAGE_FIELD}" field`,
+      );
+    }
+
+    return toEventDetail(
+      await this.catalog.replaceHeroImage(id, toUpload(file)),
+    );
+  }
+
   @Get(':slug')
   async detail(
     @Param('slug', new ZodValidationPipe(eventSlugSchema)) slug: string,
@@ -105,6 +177,21 @@ function toCriteria(query: ListEventsQuery): ListEventsCriteria {
     sort: query.sort,
     page: query.page,
     pageSize: query.pageSize,
+  };
+}
+
+/**
+ * Wire part → domain upload.
+ *
+ * The rename is the documentation: what multer calls `originalname` and
+ * `mimetype` the domain calls a filename and a *declared* content type,
+ * because that is all either of them is — a claim the sender made.
+ */
+function toUpload(file: MultipartFile): HeroImageUpload {
+  return {
+    filename: file.originalname,
+    declaredContentType: file.mimetype,
+    bytes: file.buffer,
   };
 }
 

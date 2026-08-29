@@ -3,21 +3,31 @@
 import { Button } from '@repo/ui/button';
 import { cn } from '@repo/ui/cn';
 import { Input } from '@repo/ui/input';
+import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
 /**
  * The header's search pill.
  *
  * Client-side because the field is controlled, which is what the rest of
- * search will need (recent queries, suggestion popover). Submitting does
- * nothing yet — there is no results route to send anyone to.
+ * search will need (recent queries, suggestion popover).
+ *
+ * Submitting goes to the browse listing rather than a route of its own: `q` is
+ * one of its filters, and a separate /search page would be a second listing to
+ * keep in step with this one for no gain.
  */
 export function HeaderSearch({ className }: { className?: string }) {
+  const router = useRouter();
   const [query, setQuery] = useState('');
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // TODO: route to /search?q= once the results page exists.
+
+    const trimmed = query.trim();
+    // An empty search is the unfiltered listing, not a search for "".
+    router.push(
+      trimmed ? `/events?q=${encodeURIComponent(trimmed)}` : '/events',
+    );
   }
 
   return (

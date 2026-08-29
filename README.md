@@ -124,6 +124,42 @@ migration gives them. TypeORM diffs against entity metadata, so anything the
 entity does not know about reads as drift, and the next generated migration
 will try to drop it. `pnpm db:migrate:check` catches this, in CI and locally.
 
+### Hero image uploads
+
+`POST /api/v1/events/:id/hero-image` replaces an event's artwork and writes the
+resulting URL to `events.hero_image_url`. `multipart/form-data`, the image in a
+field named `file`, 5 MiB ceiling, **JPEG and PNG only**:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/events/<id>/hero-image \
+  -F "file=@poster.png;type=image/png"
+```
+
+A request offers three claims about what it is carrying — the filename's
+extension, the part's `Content-Type`, and the bytes — and a client writes all
+three. All three are checked and must agree, so a `.gif` is refused by name and
+an executable renamed `payload.png` is refused by its bytes. The rules live in
+`src/modules/catalog/domain/hero-image.ts` and are unit-tested without a server.
+
+Two storage backends sit behind one switch, and the column records only an
+absolute URL either way — so flipping it changes where new images go and leaves
+existing rows working:
+
+| `S3_UPLOAD` | Bytes go to                          | URL looks like                             |
+| ----------- | ------------------------------------ | ------------------------------------------ |
+| `false`     | `UPLOADS_DIR`, served by the API     | `{PUBLIC_BASE_URL}/uploads/hero-images/…`  |
+| `true`      | `S3_BUCKET` under `S3_KEY_PREFIX`    | `{S3_PUBLIC_BASE_URL or the bucket}/…`     |
+
+With `S3_UPLOAD=true`, `S3_BUCKET` and `S3_REGION` are required and the server
+refuses to boot without them, rather than failing on the first upload.
+Credentials come from the AWS SDK's own provider chain, never from this app's
+environment schema. `S3_ENDPOINT` points the client at MinIO or LocalStack
+(and switches to path-style addressing). See `apps/server/.env.example`.
+
+Adding a third backend is one class implementing `HeroImageStorage` and one
+branch in `catalog.module.ts`; nothing above that port knows a file or a bucket
+was involved.
+
 ### Architecture
 
 Decisions live in `docs/`, and the ones that were expensive to make are written

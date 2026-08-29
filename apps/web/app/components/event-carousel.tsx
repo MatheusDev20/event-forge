@@ -1,39 +1,14 @@
 'use client';
 
-import type {
-  EventCategory,
-  EventStatus,
-  EventSummary,
-} from '@repo/contracts/catalog';
+import type { EventSummary } from '@repo/contracts/catalog';
 import { Button } from '@repo/ui/button';
 import { cn } from '@repo/ui/cn';
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { CATEGORY_ART_TINT, STATUS_LABEL } from '../lib/event-display';
 import { formatEventDateTime, formatMoney } from '../lib/format';
 
 const AUTOPLAY_MS = 7000;
-
-/** Sale state, said the way a buyer reads it rather than the way we store it. */
-const STATUS_LABEL: Record<EventStatus, string> = {
-  draft: 'Not yet announced',
-  published: 'Coming soon',
-  on_sale: 'On sale now',
-  closed: 'Sales closed',
-  cancelled: 'Cancelled',
-};
-
-/**
- * Fallback artwork tints, keyed by category so a given event always draws the
- * same one. These are not design tokens: they stand in for a photograph, and
- * they go away the day `heroImageUrl` is populated.
- */
-const CATEGORY_ART_TINT: Record<EventCategory, string> = {
-  music: '#1b3a8f',
-  sports: '#0f4a5a',
-  theatre: '#4a2a6b',
-  conference: '#1f4a3c',
-  comedy: '#6b3a1f',
-  festival: '#5a2a4a',
-};
 
 export function EventCarousel({ events }: { events: EventSummary[] }) {
   const count = events.length;
@@ -168,12 +143,19 @@ function Slide({
         </div>
 
         <div className="flex flex-wrap items-center gap-4.5">
+          {/* The slide's own <article> is `inert` while off-screen, which
+              keeps every hidden slide's link out of the tab order. */}
           <Button
+            asChild
             size="lg"
             className="font-display h-12.5 px-6.5 text-[15px] font-semibold shadow-none"
-            aria-label={`Buy tickets for ${event.title}`}
           >
-            Buy tickets
+            <Link
+              href={`/events/${event.slug}`}
+              aria-label={`Buy tickets for ${event.title}`}
+            >
+              Buy tickets
+            </Link>
           </Button>
           {event.priceFrom ? (
             <span className="text-on-media-subtle text-sm">

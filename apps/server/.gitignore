@@ -56,6 +56,9 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
+# uploaded files (see UPLOADS_DIR); local storage is the ADR-0005 stopgap
+/uploads
+
 # temp directory
 .temp
 .tmp

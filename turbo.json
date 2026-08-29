@@ -34,6 +34,14 @@
     "DB_PORT",
     "DB_USERNAME",
     "DB_PASSWORD",
-    "DB_NAME"
+    "DB_NAME",
+    "UPLOADS_DIR",
+    "PUBLIC_BASE_URL",
+    "S3_UPLOAD",
+    "S3_BUCKET",
+    "S3_REGION",
+    "S3_KEY_PREFIX",
+    "S3_PUBLIC_BASE_URL",
+    "S3_ENDPOINT"
   ]
 }

@@ -32,6 +32,12 @@ export const ERROR_CODES = {
   NOT_FOUND: 'NOT_FOUND',
   CONFLICT: 'CONFLICT',
   RATE_LIMITED: 'RATE_LIMITED',
+  /**
+   * The request body was larger than the endpoint accepts — an upload over the
+   * size limit, in practice. Distinct from VALIDATION_FAILED because a client
+   * can act on it: the fix is a smaller file, not a corrected field.
+   */
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
   INTERNAL: 'INTERNAL',
 } as const;
 

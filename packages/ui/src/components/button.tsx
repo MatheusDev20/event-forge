@@ -1,4 +1,4 @@
-import { Slot } from '@radix-ui/react-slot';
+import { Slot, Slottable } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '../lib/cn';
@@ -67,7 +67,7 @@ const button = cva(
 
 export type ButtonProps = ComponentProps<'button'> &
   VariantProps<typeof button> & {
-    /** Render as the single child element instead of a `<button>`. */
+    /** Render as the given child element instead of a `<button>` — for a link that looks like a button. */
     asChild?: boolean;
     /** Disables the button and swaps the leading slot for a spinner. */
     isLoading?: boolean;
@@ -98,7 +98,15 @@ export function Button({
       {...props}
     >
       {isLoading ? <Spinner /> : leadingIcon}
-      {children}
+      {/*
+       * Slottable, not a bare {children}. This component always renders three
+       * slots, so under `asChild` it hands Slot an array and Slot — which
+       * needs exactly one element to merge onto — throws "Slot failed to slot
+       * onto its children". Marking which child is the one to merge into is
+       * what lets `asChild` work at all, and it keeps the icons rendering
+       * inside the element that replaces the button.
+       */}
+      <Slottable>{children}</Slottable>
       {trailingIcon}
     </Comp>
   );

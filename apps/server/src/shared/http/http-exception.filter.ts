@@ -16,6 +16,9 @@ const STATUS_CODES: Record<number, string> = {
   [HttpStatus.BAD_REQUEST]: ERROR_CODES.VALIDATION_FAILED,
   [HttpStatus.NOT_FOUND]: ERROR_CODES.NOT_FOUND,
   [HttpStatus.CONFLICT]: ERROR_CODES.CONFLICT,
+  // Multer raises this on its own when an upload exceeds `limits.fileSize`, so
+  // without an entry here a file one byte too large would report as INTERNAL.
+  [HttpStatus.PAYLOAD_TOO_LARGE]: ERROR_CODES.PAYLOAD_TOO_LARGE,
   [HttpStatus.TOO_MANY_REQUESTS]: ERROR_CODES.RATE_LIMITED,
 };
 

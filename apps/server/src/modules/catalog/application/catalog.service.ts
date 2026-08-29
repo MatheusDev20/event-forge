@@ -6,12 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
+import { acceptHeroImage } from '../domain/hero-image';
+import type { HeroImageRejection, HeroImageUpload } from '../domain/hero-image';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
 import type { NewEvent } from '../domain/new-event';
 import { publishBlocker } from '../domain/publish-event';
 import type { PublishBlocker } from '../domain/publish-event';
 import type { EventEntity } from '../infrastructure/entities/event.entity';
 import { EventsRepository } from '../infrastructure/events.repository';
+import { HeroImageStorage } from '../infrastructure/hero-image.storage';
 
 export type EventPage = {
   items: EventEntity[];
@@ -30,7 +33,10 @@ export type EventPage = {
  */
 @Injectable()
 export class CatalogService {
-  constructor(private readonly events: EventsRepository) {}
+  constructor(
+    private readonly events: EventsRepository,
+    private readonly heroImages: HeroImageStorage,
+  ) {}
 
   async listPublicEvents(criteria: ListEventsCriteria): Promise<EventPage> {
     const { items, total } = await this.events.listPublic(criteria);
@@ -140,6 +146,64 @@ export class CatalogService {
   }
 
   /**
+   * Replaces an event's hero image with an uploaded one.
+   *
+   * The order is the interesting part. The event is looked up first so an
+   * upload against a mistyped id costs a query rather than a written file; the
+   * bytes are judged next, because the domain's answer decides whether there is
+   * anything to store at all; and only then is anything written. Storing before
+   * validating would mean every rejected `.exe` still landed on disk.
+   *
+   * Two things can still go wrong after the write, and they are not the same:
+   *
+   * - The event was deleted between the lookup and the UPDATE. Nothing points
+   *   at the new file, so it is removed and the caller gets the 404 they would
+   *   have got a moment earlier.
+   * - The event had an image already. That file is now unreferenced, so it goes
+   *   too — best-effort and after the pointer moved, because a stale file is
+   *   waste while a missing one is a broken page.
+   *
+   * The previous URL is read from the pre-update row rather than from the
+   * UPDATE itself, which leaves a window: two uploads racing on one event can
+   * both see the same predecessor, and the file written by the loser is then
+   * orphaned. That is a few unreferenced kilobytes in a scenario — one
+   * organizer replacing the same artwork twice at once — that costs more to
+   * close than it costs to leak. It is deliberate, not overlooked.
+   */
+  async replaceHeroImage(
+    id: string,
+    upload: HeroImageUpload,
+  ): Promise<EventEntity> {
+    const existing = await this.events.findById(id);
+
+    if (!existing) {
+      throw new NotFoundException(`No event with id "${id}"`);
+    }
+
+    const judged = acceptHeroImage(upload);
+
+    if (!judged.ok) {
+      // A plain message, like `describeBlocker`'s: the filter turns a 400 into
+      // VALIDATION_FAILED on its own, and `ERROR_CODES` is a contract — which
+      // ADR-0003 keeps at the HTTP edge, not in here.
+      throw new BadRequestException(describeRejection(judged.rejection));
+    }
+
+    const url = await this.heroImages.put(id, judged.image);
+
+    if (!(await this.events.setHeroImageUrl(id, url))) {
+      await this.heroImages.discard(url);
+      throw new NotFoundException(`No event with id "${id}"`);
+    }
+
+    if (existing.heroImageUrl) {
+      await this.heroImages.discard(existing.heroImageUrl);
+    }
+
+    return this.readBack(id, 'Updated');
+  }
+
+  /**
    * Re-reads an event with its relations straight after writing it, so the
    * response describes the row that exists rather than the one we sent.
    *
@@ -191,6 +255,35 @@ function describeBlocker(blocker: PublishBlocker): string {
       return 'Cannot publish an event whose seat map has no capacity: every section is empty';
     case 'unpriced_sections':
       return `Every section must be priced before publishing. Unpriced: ${blocker.sectionNames.join(', ')}`;
+  }
+}
+
+/**
+ * A rejected upload, said to whoever sent it.
+ *
+ * Same split as `describeBlocker` above: the domain decides what is wrong and
+ * this decides how to say it. Each message names the thing the caller can
+ * change — the extension they picked, the header their client sent — because
+ * "invalid image" tells an organizer nothing about which of the two to fix.
+ */
+function describeRejection(rejection: HeroImageRejection): string {
+  const accepted = 'Only JPEG (.jpg, .jpeg) and PNG (.png) images are accepted';
+
+  switch (rejection.reason) {
+    case 'empty':
+      return 'The uploaded file is empty';
+    case 'too_large':
+      return `The image is ${Math.ceil(rejection.size / 1024)} KiB; the limit is ${Math.floor(rejection.limit / 1024)} KiB`;
+    case 'unsupported_extension':
+      return rejection.extension === null
+        ? `The filename has no extension. ${accepted}`
+        : `Files with a "${rejection.extension}" extension are not accepted. ${accepted}`;
+    case 'unsupported_content_type':
+      return `Content-Type "${rejection.contentType}" is not accepted. ${accepted}`;
+    case 'unrecognized_bytes':
+      return `The file is not a JPEG or a PNG, whatever it is named. ${accepted}`;
+    case 'mismatched_claims':
+      return `The file is ${rejection.actual} but was sent as ${rejection.claimed}; renaming a file does not change its format`;
   }
 }
 

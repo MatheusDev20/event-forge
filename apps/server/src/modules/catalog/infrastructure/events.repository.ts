@@ -264,6 +264,28 @@ export class EventsRepository {
     return result.affected === 1;
   }
 
+  /**
+   * Points an event at a new hero image. False when no such event exists.
+   *
+   * Only the pointer moves. The bytes are already written and the previous
+   * file is still on disk — deciding what happens to it is the service's job,
+   * because it is the layer that knows the write succeeded.
+   *
+   * `updated_at` is set explicitly for the same reason `markPublished` does it:
+   * the column is a plain default, not an @UpdateDateColumn, so without this
+   * the row would still claim it was last touched when the draft was inserted.
+   */
+  async setHeroImageUrl(id: string, url: string): Promise<boolean> {
+    const result = await this.events
+      .createQueryBuilder()
+      .update(EventEntity)
+      .set({ heroImageUrl: url, updatedAt: () => 'now()' })
+      .where('id = :id', { id })
+      .execute();
+
+    return result.affected === 1;
+  }
+
   private async findPublishSections(
     eventId: string,
     seatMapId: string,
