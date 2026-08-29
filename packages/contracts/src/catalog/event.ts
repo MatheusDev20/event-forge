@@ -40,6 +40,15 @@ export const eventSlugSchema = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Must be a lowercase, hyphenated slug');
 
+/**
+ * An event's primary identifier.
+ *
+ * Transitions address an event by id while reads address it by slug: a slug is
+ * a public, human-facing handle that an organizer may well rewrite, and
+ * publishing should not stop working because the marketing copy changed.
+ */
+export const eventIdSchema = z.uuid();
+
 export const venueSummarySchema = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -100,6 +109,7 @@ export const listEventsQuerySchema = paginationQuerySchema.extend({
 
 export const listEventsResponseSchema = paginatedSchema(eventSummarySchema);
 
+export type EventId = z.infer<typeof eventIdSchema>;
 export type EventStatus = z.infer<typeof eventStatusSchema>;
 export type EventCategory = z.infer<typeof eventCategorySchema>;
 export type VenueSummary = z.infer<typeof venueSummarySchema>;

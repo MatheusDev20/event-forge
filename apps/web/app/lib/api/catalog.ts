@@ -13,7 +13,7 @@ import { apiGet } from './client';
  * Inventory will not get this treatment — an availability number that is 60
  * seconds old is worse than no number at all.
  */
-const CATALOG_REVALIDATE_SECONDS = 60;
+export const CATALOG_REVALIDATE_SECONDS = 60;
 
 /**
  * Parses raw search params into a valid query, discarding anything that does

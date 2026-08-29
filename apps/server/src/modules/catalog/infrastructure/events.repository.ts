@@ -5,6 +5,11 @@ import { PUBLICLY_VISIBLE_STATUSES } from '../domain/event';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
 import { INITIAL_EVENT_STATUS } from '../domain/new-event';
 import type { NewEvent, ReferenceCheck } from '../domain/new-event';
+import {
+  PUBLISHABLE_FROM_STATUS,
+  PUBLISHED_STATUS,
+} from '../domain/publish-event';
+import type { PublishCandidate, PublishSection } from '../domain/publish-event';
 import { EventEntity } from './entities/event.entity';
 import { OrganizerEntity } from './entities/organizer.entity';
 import { PriceTierEntity } from './entities/price-tier.entity';
@@ -22,6 +27,33 @@ const MIN_TIER_PRICE = `(
   SELECT MIN(tier.price_amount_minor)
   FROM price_tiers tier
   WHERE tier.event_id = event.id
+)`;
+
+/**
+ * How many seats a section actually contains, counted through its rows. Zero
+ * for general admission, which has no rows by design — `sectionCapacity` reads
+ * the counter column for those instead.
+ */
+const SECTION_SEAT_COUNT = `(
+  SELECT COUNT(*)
+  FROM seats seat
+  JOIN seat_rows seat_row ON seat_row.id = seat.row_id
+  WHERE seat_row.section_id = section.id
+)`;
+
+/**
+ * Whether a price tier *of this event* covers the section.
+ *
+ * The join through price_tiers is the whole point: price_tier_sections alone
+ * would answer "is this section priced by anyone", and a section priced only by
+ * last year's event is not priced for this one.
+ */
+const SECTION_IS_PRICED = `EXISTS (
+  SELECT 1
+  FROM price_tier_sections mapping
+  JOIN price_tiers tier ON tier.id = mapping.price_tier_id
+  WHERE mapping.section_id = section.id
+    AND tier.event_id = :eventId
 )`;
 
 const LIST_RELATIONS = {
@@ -175,6 +207,98 @@ export class EventsRepository {
 
       return event.id;
     });
+  }
+
+  /**
+   * Everything the publish rule needs to judge one event, in two queries.
+   *
+   * Gathered here rather than judged here: this returns facts, and
+   * `publishBlocker` decides what they mean. That split is what lets the rules
+   * be unit-tested without a database.
+   */
+  async findPublishCandidate(id: string): Promise<PublishCandidate | null> {
+    const event = await this.events.findOne({
+      where: { id },
+      relations: { priceTiers: true },
+    });
+
+    if (!event) return null;
+
+    return {
+      status: event.status,
+      seatMapId: event.seatMapId,
+      priceTierCount: event.priceTiers.length,
+      // No seat map means no sections to fetch — and `no_seat_map` blocks the
+      // publish before anything looks at this array anyway.
+      sections:
+        event.seatMapId === null
+          ? []
+          : await this.findPublishSections(event.id, event.seatMapId),
+    };
+  }
+
+  /**
+   * The transition, as one conditional UPDATE.
+   *
+   * `AND status = 'draft'` is what makes two simultaneous publishes safe: both
+   * can read a publishable draft, both can pass every rule, and exactly one
+   * will match a row. The checks above exist to produce a clear message; this
+   * line is the one that is actually authoritative — the same division of
+   * labour as the slug's unique index behind `create`.
+   *
+   * `updated_at` is set explicitly because the column is a plain default, not
+   * an @UpdateDateColumn; without this it would still read as the moment the
+   * draft was inserted.
+   */
+  async markPublished(id: string): Promise<boolean> {
+    const result = await this.events
+      .createQueryBuilder()
+      .update(EventEntity)
+      .set({ status: PUBLISHED_STATUS, updatedAt: () => 'now()' })
+      .where('id = :id AND status = :from', {
+        id,
+        from: PUBLISHABLE_FROM_STATUS,
+      })
+      .execute();
+
+    return result.affected === 1;
+  }
+
+  private async findPublishSections(
+    eventId: string,
+    seatMapId: string,
+  ): Promise<PublishSection[]> {
+    const rows = await this.events.manager
+      .getRepository(SectionEntity)
+      .createQueryBuilder('section')
+      .select('section.id', 'id')
+      .addSelect('section.name', 'name')
+      .addSelect('section.kind', 'kind')
+      .addSelect('section.capacity', 'capacity')
+      .addSelect(SECTION_SEAT_COUNT, 'seat_count')
+      .addSelect(SECTION_IS_PRICED, 'is_priced')
+      .where('section.seat_map_id = :seatMapId', { seatMapId })
+      .setParameter('eventId', eventId)
+      .orderBy('section.display_order', 'ASC')
+      .getRawMany<{
+        id: string;
+        name: string;
+        kind: PublishSection['kind'];
+        capacity: number | null;
+        seat_count: string;
+        is_priced: boolean;
+      }>();
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      kind: row.kind,
+      capacity: row.capacity,
+      // COUNT() is a bigint, which pg hands back as a string rather than risk
+      // a silent precision loss. Nothing downstream expects one.
+      seatCount: Number(row.seat_count),
+      isPriced: row.is_priced,
+    }));
   }
 
   findPublicBySlug(slug: string): Promise<EventEntity | null> {

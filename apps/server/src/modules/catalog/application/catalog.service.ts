@@ -8,6 +8,8 @@ import {
 import { QueryFailedError } from 'typeorm';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
 import type { NewEvent } from '../domain/new-event';
+import { publishBlocker } from '../domain/publish-event';
+import type { PublishBlocker } from '../domain/publish-event';
 import type { EventEntity } from '../infrastructure/entities/event.entity';
 import { EventsRepository } from '../infrastructure/events.repository';
 
@@ -90,17 +92,70 @@ export class CatalogService {
       throw error;
     });
 
-    const created = await this.events.findById(id);
+    return this.readBack(id, 'Created');
+  }
 
-    if (!created) {
-      // The row was committed a moment ago; not finding it means something is
-      // wrong with the connection or the transaction, not with the request.
-      throw new InternalServerErrorException(
-        'Created event could not be read back',
+  /**
+   * Publishes a draft.
+   *
+   * Two phases, and the split is deliberate. The rules run first so an
+   * organizer gets a message naming the section they forgot to price; the
+   * conditional UPDATE runs second and is what actually decides, because
+   * between the two a concurrent request can publish the same draft. Checking
+   * for a good error and letting the database settle the race is the same
+   * shape `createEvent` uses against the slug's unique index.
+   */
+  async publishEvent(id: string): Promise<EventEntity> {
+    const candidate = await this.events.findPublishCandidate(id);
+
+    if (!candidate) {
+      throw new NotFoundException(`No event with id "${id}"`);
+    }
+
+    const blocker = publishBlocker(candidate);
+
+    if (blocker) {
+      throw new ConflictException(describeBlocker(blocker));
+    }
+
+    if (!(await this.events.markPublished(id))) {
+      // Every rule passed against a draft, and by the time the UPDATE ran the
+      // row was no longer one. Someone else's transition is the one that
+      // happened; saying so beats reporting a success that was not ours.
+      throw new ConflictException(
+        `Event "${id}" was published concurrently by another request`,
       );
     }
 
-    return created;
+    /*
+     * Slice 1 hooks in exactly here: ADR-0006 has Inventory copy the seat map
+     * into allocation rows on EventPublished, inside this transition. Nothing
+     * is emitted yet on purpose — an in-process bus with no subscribers is
+     * decorative, and the ADR is explicit that this signal is what makes it
+     * load-bearing. When it arrives, the UPDATE and the snapshot become one
+     * transaction.
+     */
+
+    return this.readBack(id, 'Published');
+  }
+
+  /**
+   * Re-reads an event with its relations straight after writing it, so the
+   * response describes the row that exists rather than the one we sent.
+   *
+   * A miss is not a request problem — the write committed a moment ago — so it
+   * is a 500 about our connection, not a 404 about their id.
+   */
+  private async readBack(id: string, wrote: string): Promise<EventEntity> {
+    const event = await this.events.findById(id);
+
+    if (!event) {
+      throw new InternalServerErrorException(
+        `${wrote} event could not be read back`,
+      );
+    }
+
+    return event;
   }
 
   async getPublicEventBySlug(slug: string): Promise<EventEntity> {
@@ -114,6 +169,28 @@ export class CatalogService {
     }
 
     return event;
+  }
+}
+
+/**
+ * A blocker, said to whoever tried to publish.
+ *
+ * The domain decides the rule and this decides the wording — the same split
+ * the mapper makes for reads. Every one of these is a 409: the request is
+ * well-formed, the event is simply not in a state that permits the transition.
+ */
+function describeBlocker(blocker: PublishBlocker): string {
+  switch (blocker.reason) {
+    case 'wrong_status':
+      return `Only a draft can be published; this event is "${blocker.status}"`;
+    case 'no_seat_map':
+      return 'Cannot publish an event with no seat map: publishing is when a layout becomes what is on sale';
+    case 'no_price_tiers':
+      return 'Cannot publish an event with no price tiers';
+    case 'empty_seat_map':
+      return 'Cannot publish an event whose seat map has no capacity: every section is empty';
+    case 'unpriced_sections':
+      return `Every section must be priced before publishing. Unpriced: ${blocker.sectionNames.join(', ')}`;
   }
 }
 

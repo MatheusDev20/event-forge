@@ -3,6 +3,14 @@ import type { ZodType } from 'zod';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+/**
+ * `next: { revalidate }` is a server-only extension to RequestInit. The
+ * browser's native fetch ignores keys it does not know, so passing it there
+ * would make a caching option look honoured when nothing honours it — on the
+ * client, react-query owns caching (see app/hooks/use-events.ts).
+ */
+const IS_SERVER = typeof window === 'undefined';
+
 if (!BASE_URL) {
   throw new Error(
     'NEXT_PUBLIC_BACKEND_URL is not set — copy apps/web/.env.example to .env.local',
@@ -40,7 +48,7 @@ type RequestOptions = {
 };
 
 /**
- * The single door to the API.
+ * The single door to the API, from server components and the browser alike.
  *
  * Responses are parsed against the contract schema rather than cast, so a
  * server that drifts from the contract fails here — with the offending field
@@ -64,10 +72,14 @@ export async function apiGet<T>(
   try {
     response = await fetch(url, {
       headers: { accept: 'application/json' },
-      next:
-        options.revalidate === undefined
-          ? { revalidate: 0 }
-          : { revalidate: options.revalidate },
+      ...(IS_SERVER
+        ? {
+            next:
+              options.revalidate === undefined
+                ? { revalidate: 0 }
+                : { revalidate: options.revalidate },
+          }
+        : {}),
     });
   } catch (cause) {
     throw new ApiTransportError(`Could not reach the API at ${url.pathname}`, {
