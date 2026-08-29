@@ -11,6 +11,7 @@ import { SeatMapEntity } from '../modules/catalog/infrastructure/entities/seat-m
 import { SeatRowEntity } from '../modules/catalog/infrastructure/entities/seat-row.entity';
 import { SectionEntity } from '../modules/catalog/infrastructure/entities/section.entity';
 import { VenueEntity } from '../modules/catalog/infrastructure/entities/venue.entity';
+import { AllocationEntity } from '../modules/inventory/infrastructure/entities/allocation.entity';
 
 loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
 
@@ -24,6 +25,7 @@ loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
  * boots without Nest.
  */
 export const entities = [
+  AllocationEntity,
   EventEntity,
   OrganizerEntity,
   PriceTierEntity,

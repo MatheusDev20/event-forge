@@ -6,12 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
+import { DomainEventBus } from '../../../shared/events';
 import { acceptHeroImage } from '../domain/hero-image';
 import type { HeroImageRejection, HeroImageUpload } from '../domain/hero-image';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
 import type { NewEvent } from '../domain/new-event';
-import { publishBlocker } from '../domain/publish-event';
-import type { PublishBlocker } from '../domain/publish-event';
+import { onSaleBlocker, publishBlocker } from '../domain/publish-event';
+import type { OnSaleBlocker, PublishBlocker } from '../domain/publish-event';
+import type { SeatMapLayout } from '../domain/seat-map';
 import type { EventEntity } from '../infrastructure/entities/event.entity';
 import { EventsRepository } from '../infrastructure/events.repository';
 import { HeroImageStorage } from '../infrastructure/hero-image.storage';
@@ -36,6 +38,7 @@ export class CatalogService {
   constructor(
     private readonly events: EventsRepository,
     private readonly heroImages: HeroImageStorage,
+    private readonly bus: DomainEventBus,
   ) {}
 
   async listPublicEvents(criteria: ListEventsCriteria): Promise<EventPage> {
@@ -124,7 +127,36 @@ export class CatalogService {
       throw new ConflictException(describeBlocker(blocker));
     }
 
-    if (!(await this.events.markPublished(id))) {
+    /*
+     * ADR-0006: the status change and Inventory's snapshot are one atomic
+     * fact. Both happen inside this transaction, so a layout that cannot be
+     * put on sale takes the publish down with it and the event stays a draft —
+     * rather than reaching `published` with nothing to sell, which no later
+     * request could detect, let alone repair.
+     *
+     * The bus call is synchronous and its handlers write through `manager`.
+     * See DomainEventBus for why that coupling is deliberate here and would be
+     * wrong on the hold path.
+     */
+    const published = await this.events.transaction(async (manager) => {
+      if (!(await this.events.markPublished(id, manager))) return false;
+
+      await this.bus.publish(
+        {
+          name: 'EventPublished',
+          eventId: id,
+          // Not null: `publishBlocker` refuses an event without a seat map, so
+          // reaching here means the check above already proved this.
+          seatMapId: candidate.seatMapId!,
+          occurredAt: new Date(),
+        },
+        manager,
+      );
+
+      return true;
+    });
+
+    if (!published) {
       // Every rule passed against a draft, and by the time the UPDATE ran the
       // row was no longer one. Someone else's transition is the one that
       // happened; saying so beats reporting a success that was not ours.
@@ -132,15 +164,6 @@ export class CatalogService {
         `Event "${id}" was published concurrently by another request`,
       );
     }
-
-    /*
-     * Slice 1 hooks in exactly here: ADR-0006 has Inventory copy the seat map
-     * into allocation rows on EventPublished, inside this transition. Nothing
-     * is emitted yet on purpose — an in-process bus with no subscribers is
-     * decorative, and the ADR is explicit that this signal is what makes it
-     * load-bearing. When it arrives, the UPDATE and the snapshot become one
-     * transaction.
-     */
 
     return this.readBack(id, 'Published');
   }
@@ -204,6 +227,48 @@ export class CatalogService {
   }
 
   /**
+   * Opens sales. `published → on_sale`, and nothing else.
+   *
+   * Separate from publish because the domain model is binding: only an
+   * `on_sale` event accepts holds, and an organizer needs the page live before
+   * the tickets move. No snapshot happens here — Inventory already has its
+   * rows — so this needs no transaction beyond the single conditional UPDATE,
+   * which is once again the thing that actually decides under concurrency.
+   */
+  async putEventOnSale(id: string): Promise<EventEntity> {
+    const event = await this.events.findById(id);
+
+    if (!event) {
+      throw new NotFoundException(`No event with id "${id}"`);
+    }
+
+    const blocker = onSaleBlocker(event.status);
+
+    if (blocker) {
+      throw new ConflictException(describeOnSaleBlocker(blocker));
+    }
+
+    if (!(await this.events.markOnSale(id))) {
+      throw new ConflictException(
+        `Event "${id}" changed status concurrently; it is no longer publishable for sale`,
+      );
+    }
+
+    return this.readBack(id, 'Opened for sale');
+  }
+
+  /**
+   * A seat map, for another bounded context.
+   *
+   * Catalog's sanctioned export of the layout (ADR-0001): Inventory calls this
+   * during publish to snapshot what it is selling. It hands over a copy and
+   * keeps no interest in what happens to it — ADR-0006's whole point.
+   */
+  getSeatMapLayout(seatMapId: string): Promise<SeatMapLayout | null> {
+    return this.events.findSeatMapLayout(seatMapId);
+  }
+
+  /**
    * Re-reads an event with its relations straight after writing it, so the
    * response describes the row that exists rather than the one we sent.
    *
@@ -256,6 +321,11 @@ function describeBlocker(blocker: PublishBlocker): string {
     case 'unpriced_sections':
       return `Every section must be priced before publishing. Unpriced: ${blocker.sectionNames.join(', ')}`;
   }
+}
+
+/** Why an event could not be put on sale. */
+function describeOnSaleBlocker(blocker: OnSaleBlocker): string {
+  return `Only a published event can go on sale; this event is "${blocker.status}"`;
 }
 
 /**

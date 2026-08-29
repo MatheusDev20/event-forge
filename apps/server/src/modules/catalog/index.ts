@@ -13,6 +13,9 @@ export {
   SECTION_KINDS,
   seatMapCapacity,
   sectionCapacity,
+  type LayoutSeat,
+  type LayoutSection,
+  type SeatMapLayout,
   type SectionCapacity,
   type SectionKind,
 } from './domain/seat-map';

@@ -41,9 +41,9 @@ const VENUES = [
  * One layout per venue, index-aligned with VENUES above.
  *
  * The mix is the point: a fully seated theatre, two mixed rooms, and stadiums
- * that sell nothing but counters. Slice 2 load-tests seated contention against
- * general-admission contention, and it needs both shapes in the same database
- * to do it.
+ * that sell nothing but counters. Slice 3 measures seated contention against
+ * general-admission contention — thousands of rows versus one hot one — and it
+ * needs both shapes in the same database to do it.
  *
  * Seated sections are kept small — hundreds, not tens of thousands. A real
  * Mineirão seat map is 60k rows of fixture data that slow every `db:fresh`

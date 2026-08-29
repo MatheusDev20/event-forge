@@ -125,6 +125,20 @@ describe('POST /api/v1/events/:id/publish (e2e)', () => {
   });
 
   afterEach(async () => {
+    /*
+     * Allocations first, and by hand.
+     *
+     * Publishing now snapshots capacity into Inventory (ADR-0006), and that
+     * table deliberately has no foreign key back to `events` — cross-context
+     * references are plain ids. So nothing cascades: deleting the event alone
+     * would leave its allocation rows behind for every later run to trip over.
+     */
+    await dataSource.query(
+      `DELETE FROM allocations
+        WHERE event_id IN (SELECT id FROM events WHERE slug LIKE $1)`,
+      [`${PREFIX}%`],
+    );
+
     await dataSource
       .getRepository(EventEntity)
       .createQueryBuilder()

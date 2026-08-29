@@ -1,19 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, type SelectQueryBuilder } from 'typeorm';
+import {
+  In,
+  Repository,
+  type EntityManager,
+  type SelectQueryBuilder,
+} from 'typeorm';
 import { PUBLICLY_VISIBLE_STATUSES } from '../domain/event';
+import type { EventStatus } from '../domain/event';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
 import { INITIAL_EVENT_STATUS } from '../domain/new-event';
 import type { NewEvent, ReferenceCheck } from '../domain/new-event';
 import {
+  ON_SALE_STATUS,
   PUBLISHABLE_FROM_STATUS,
   PUBLISHED_STATUS,
+  SELLABLE_FROM_STATUS,
 } from '../domain/publish-event';
 import type { PublishCandidate, PublishSection } from '../domain/publish-event';
+import type {
+  LayoutSeat,
+  LayoutSection,
+  SeatMapLayout,
+} from '../domain/seat-map';
 import { EventEntity } from './entities/event.entity';
 import { OrganizerEntity } from './entities/organizer.entity';
 import { PriceTierEntity } from './entities/price-tier.entity';
 import { PriceTierSectionEntity } from './entities/price-tier-section.entity';
+import { SeatEntity } from './entities/seat.entity';
 import { SeatMapEntity } from './entities/seat-map.entity';
 import { SectionEntity } from './entities/section.entity';
 import { VenueEntity } from './entities/venue.entity';
@@ -238,6 +252,62 @@ export class EventsRepository {
   }
 
   /**
+   * Runs work in one transaction.
+   *
+   * Exposed because `publishEvent` needs the status change and Inventory's
+   * snapshot to commit together (ADR-0006), and the service is the layer that
+   * knows both are part of one decision. The repository owns the connection;
+   * it does not own what belongs inside the boundary.
+   */
+  transaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+    return this.events.manager.transaction(work);
+  }
+
+  /**
+   * The whole layout of one seat map, flattened, for a context that is about
+   * to copy it.
+   *
+   * One query with two joins rather than TypeORM's nested `relations`: the
+   * result is consumed flat (an allocation row carries section, row and seat
+   * labels side by side), and hydrating a three-level object graph only to
+   * walk it back down costs an object per seat for a 50k-seat venue.
+   *
+   * Ordered so a snapshot is deterministic — two publishes of the same layout
+   * produce allocations in the same order, which makes a diff between two runs
+   * mean something.
+   */
+  async findSeatMapLayout(seatMapId: string): Promise<SeatMapLayout | null> {
+    const exists = await this.events.manager
+      .getRepository(SeatMapEntity)
+      .existsBy({ id: seatMapId });
+
+    if (!exists) return null;
+
+    const rows = await this.events.manager
+      .getRepository(SectionEntity)
+      .createQueryBuilder('section')
+      .leftJoin('seat_rows', 'seat_row', 'seat_row.section_id = section.id')
+      .leftJoin(SeatEntity, 'seat', 'seat.row_id = seat_row.id')
+      .select('section.id', 'section_id')
+      .addSelect('section.name', 'section_name')
+      .addSelect('section.kind', 'section_kind')
+      .addSelect('section.capacity', 'section_capacity')
+      .addSelect('section.display_order', 'section_order')
+      .addSelect('seat_row.label', 'row_label')
+      .addSelect('seat_row.display_order', 'row_order')
+      .addSelect('seat.id', 'seat_id')
+      .addSelect('seat.label', 'seat_label')
+      .addSelect('seat.display_order', 'seat_order')
+      .where('section.seat_map_id = :seatMapId', { seatMapId })
+      .orderBy('section.display_order', 'ASC')
+      .addOrderBy('seat_row.display_order', 'ASC', 'NULLS FIRST')
+      .addOrderBy('seat.display_order', 'ASC', 'NULLS FIRST')
+      .getRawMany<LayoutRow>();
+
+    return { seatMapId, sections: groupIntoSections(rows) };
+  }
+
+  /**
    * The transition, as one conditional UPDATE.
    *
    * `AND status = 'draft'` is what makes two simultaneous publishes safe: both
@@ -246,19 +316,57 @@ export class EventsRepository {
    * line is the one that is actually authoritative — the same division of
    * labour as the slug's unique index behind `create`.
    *
+   * `manager` is how this joins a caller's transaction, which is what lets the
+   * status change and Inventory's snapshot commit together (ADR-0006) without
+   * this class learning that Inventory exists.
+   *
    * `updated_at` is set explicitly because the column is a plain default, not
    * an @UpdateDateColumn; without this it would still read as the moment the
    * draft was inserted.
    */
-  async markPublished(id: string): Promise<boolean> {
-    const result = await this.events
+  markPublished(id: string, manager?: EntityManager): Promise<boolean> {
+    return this.transitionStatus(
+      id,
+      PUBLISHABLE_FROM_STATUS,
+      PUBLISHED_STATUS,
+      manager,
+    );
+  }
+
+  /**
+   * Opening the doors: `published → on_sale`.
+   *
+   * Same conditional-UPDATE shape, and for the same reason — two callers can
+   * both read a published event, and exactly one may be the one that opened
+   * it. Nothing is snapshotted here, so it needs no transaction of its own.
+   */
+  markOnSale(id: string): Promise<boolean> {
+    return this.transitionStatus(id, SELLABLE_FROM_STATUS, ON_SALE_STATUS);
+  }
+
+  /**
+   * One status transition, guarded by the status it must be coming from.
+   *
+   * Extracted because both transitions are the same statement with different
+   * nouns, and because the `WHERE status = :from` clause is the part that has
+   * to stay identical: it is what makes each transition happen exactly once
+   * under concurrency, and it would be easy to drop from a copy.
+   */
+  private async transitionStatus(
+    id: string,
+    from: EventStatus,
+    to: EventStatus,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const repository = manager
+      ? manager.getRepository(EventEntity)
+      : this.events;
+
+    const result = await repository
       .createQueryBuilder()
       .update(EventEntity)
-      .set({ status: PUBLISHED_STATUS, updatedAt: () => 'now()' })
-      .where('id = :id AND status = :from', {
-        id,
-        from: PUBLISHABLE_FROM_STATUS,
-      })
+      .set({ status: to, updatedAt: () => 'now()' })
+      .where('id = :id AND status = :from', { id, from })
       .execute();
 
     return result.affected === 1;
@@ -394,4 +502,53 @@ export class EventsRepository {
 
     return qb.addOrderBy('event.id', 'ASC');
   }
+}
+
+/** One row of the flattened layout query; seat columns are NULL for GA. */
+type LayoutRow = {
+  section_id: string;
+  section_name: string;
+  section_kind: LayoutSection['kind'];
+  section_capacity: number | null;
+  row_label: string | null;
+  seat_id: string | null;
+  seat_label: string | null;
+};
+
+/**
+ * Rebuilds sections from the joined rows.
+ *
+ * A left join means a general-admission section — which has no rows and no
+ * seats — still arrives, as a single row with every seat column NULL. That is
+ * the case the `seat_id === null` guard exists for, and getting it wrong would
+ * give every GA section one phantom seat.
+ */
+function groupIntoSections(rows: LayoutRow[]): LayoutSection[] {
+  const sections = new Map<string, LayoutSection & { seats: LayoutSeat[] }>();
+
+  for (const row of rows) {
+    let section = sections.get(row.section_id);
+
+    if (!section) {
+      section = {
+        id: row.section_id,
+        name: row.section_name,
+        kind: row.section_kind,
+        capacity: row.section_capacity,
+        seats: [],
+      };
+      sections.set(row.section_id, section);
+    }
+
+    // The GA case, and equally a seated section nobody has put seats in yet.
+    if (row.seat_id === null || row.row_label === null) continue;
+
+    section.seats.push({
+      id: row.seat_id,
+      rowLabel: row.row_label,
+      seatLabel: row.seat_label ?? '',
+    });
+  }
+
+  return [...sections.values()];
 }

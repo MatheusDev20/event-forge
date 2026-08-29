@@ -108,3 +108,33 @@ export function publishBlocker(
 
   return null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Opening the doors
+ * ------------------------------------------------------------------ */
+
+/**
+ * Putting an event on sale — the second transition, and a much smaller one.
+ *
+ * It exists as its own step because `docs/domain-model.md` is binding and says
+ * only an `on_sale` event accepts holds. Collapsing it into publish would mean
+ * an organizer can never have a page live before tickets move, and it would
+ * merge two facts that fail differently: publishing is where capacity is
+ * snapshotted and can fail on a bad layout, while going on sale is a decision
+ * about timing that cannot fail on anything.
+ *
+ * Which is why there are no rules here beyond the status itself. Everything
+ * worth checking was checked at publish, and re-checking it would be asking
+ * the same questions of a world that Inventory has already copied.
+ */
+export const SELLABLE_FROM_STATUS: EventStatus = 'published';
+export const ON_SALE_STATUS: EventStatus = 'on_sale';
+
+/** Why an event may not go on sale, or null if it may. */
+export type OnSaleBlocker = { reason: 'wrong_status'; status: EventStatus };
+
+export function onSaleBlocker(status: EventStatus): OnSaleBlocker | null {
+  return status === SELLABLE_FROM_STATUS
+    ? null
+    : { reason: 'wrong_status', status };
+}

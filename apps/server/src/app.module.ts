@@ -7,6 +7,8 @@ import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { validateEnv, type Env } from './config/env';
 import { HealthController } from './health.controller';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { InventoryModule } from './modules/inventory';
+import { EventsModule } from './shared/events';
 
 @Module({
   imports: [
@@ -50,7 +52,11 @@ import { CatalogModule } from './modules/catalog/catalog.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     CacheModule.register(),
+    // Global, and registered before the contexts that use it: Inventory
+    // subscribes to the bus in its own onModuleInit.
+    EventsModule,
     CatalogModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -54,3 +54,47 @@ export function seatMapCapacity(sections: readonly SectionCapacity[]): number {
     0,
   );
 }
+
+/* ------------------------------------------------------------------ *
+ * The layout, as another context sees it
+ * ------------------------------------------------------------------ */
+
+/**
+ * One seat, flattened.
+ *
+ * Row and seat labels together, rather than a nested rows array, because the
+ * only consumer is Inventory's snapshot and a snapshot row is flat: ADR-0006
+ * has it denormalise section name, row label and seat label onto the
+ * allocation. Handing over the tree only to flatten it on the other side would
+ * put the same loop in two contexts.
+ */
+export type LayoutSeat = {
+  id: string;
+  rowLabel: string;
+  seatLabel: string;
+};
+
+/** One section of a layout, with its seats if it has any. */
+export type LayoutSection = {
+  id: string;
+  name: string;
+  kind: SectionKind;
+  /** General admission only; NULL for seated, as in the table. */
+  capacity: number | null;
+  /** Empty for general admission, which sells a counter rather than places. */
+  seats: readonly LayoutSeat[];
+};
+
+/**
+ * A whole seat map, as Catalog hands it across a context boundary.
+ *
+ * This type is Catalog's public surface for the layout — the sanctioned path
+ * ADR-0001 leaves open, and the reason `EventPublished` can carry a seat map id
+ * instead of tens of thousands of seats. It is a *copy*: what the receiver does
+ * with it, including keeping it forever, is no longer Catalog's business, which
+ * is precisely the point of ADR-0006.
+ */
+export type SeatMapLayout = {
+  seatMapId: string;
+  sections: readonly LayoutSection[];
+};

@@ -1,81 +1,150 @@
-# Roadmap — vertical slices
+# Roadmap — one experiment
 
-_Last updated: 2026-08-22_
+_Last updated: 2026-08-29_
 
-Every slice crosses the whole stack: design system → web → contract → domain →
-database → test. Nothing is "the backend half of a feature". A slice is done
-when you can use it in a browser and its tests run in CI.
+## The experiment
 
-## Slice 0 — Walking skeleton: browse & view events
+> Two attendees request **the same seat**, for the same event, at the same
+> instant, moments after it went on sale. **Exactly one gets it.**
+>
+> Prove it under real concurrency, repeatedly, in CI — and be able to explain
+> *which mechanism* made it true.
 
-Deliberately trivial domain logic. The point is to prove the architecture end to
-end while there is nothing complicated to hide behind.
+That is the whole point of this project. Everything below is judged by one
+question: does it get closer to that sentence being demonstrably true?
 
-**Groundwork it forces:**
+Event-Forge is a lab, not a product. So the old definition of done — "you can
+use it in a browser" — does not apply here. **A slice is done when a test
+proves something about the system's behaviour under contention.** A browser
+cannot demonstrate a race; a test that fires N simultaneous requests and counts
+the winners can.
 
-- `packages/contracts` exists, with `catalog` schemas (ADR-0003).
-- `@repo/ui` has a token layer, light + dark, and its first real components
-  (ADR-0004); daisyUI is gone.
-- `apps/server` has its first bounded-context module with enforced import
-  boundaries and a lint rule that fails the build (ADR-0001).
-- Migrations run, `synchronize` is off, `DB_ENABLED` is gone (ADR-0002).
-- Seed data: a handful of venues, organizers, and published events.
-- CI green: lint, typecheck, unit, e2e against Postgres.
+## Where we are
 
-**Fixes to fold in while touching these files:** `main.ts` calls
-`useGlobalPipes` twice; `PostgresDBConfigService.createTypeOrmOptions` catches
-its own error and returns `undefined`, turning a bad config into a confusing
-downstream crash instead of a clear boot failure.
+Slice 0 is done. Catalog exists and is deliberately boring: events, venues,
+seat maps (sections → rows → seats), price tiers, and a `draft → published`
+transition whose conditional `UPDATE ... WHERE status = 'draft'` is already the
+right shape — the database decides, the application only explains.
 
-**Done when:** an attendee lands on `/events`, filters and pages through seeded
-events, opens one, and sees its detail — in light and dark, with every pixel
-coming from our own tokens.
+**What is missing is scarcity.** There is nothing in this system to contend
+over yet. A seat is a row in a layout, not a unit anyone can claim. No two
+requests can currently conflict, so there is no race to win.
 
-## Slice 1 — Seat maps and availability
+---
 
-Catalog gains venues with seat maps; Inventory gains allocations. Read-only
-availability: an event detail page renders its seat map with seats marked
-available or taken. Introduces the seated / general-admission split.
+## Slice 1 — Inventory, and the snapshot that creates scarcity
 
-## Slice 2 — Holds under concurrency ★
+You cannot race for a seat until a seat is a thing that can be *claimed*. This
+slice turns Catalog's layout into Inventory's claimable units.
 
-The reason this project exists. An attendee selects seats and gets an exclusive,
-expiring hold.
+The design decision is already made — see `docs/adr/0006-seat-map-snapshot.md`.
+This slice is its implementation, and `catalog.service.ts` already carries the
+comment marking exactly where it hooks in.
 
-Where the real work is:
+**What it forces:**
 
-- Optimistic (version column) vs pessimistic (`SELECT … FOR UPDATE`) locking —
-  implement both, then load-test them against each other.
-- Expiry enforced at read time, with a sweeper as cleanup rather than as the
-  source of truth.
-- The general-admission counter path, which has different contention
-  characteristics from per-seat rows.
-- A concurrency test suite that fires N simultaneous requests at the last seat
-  and asserts exactly one wins. This is the project's flagship test.
+- An `inventory` module with an `allocations` table: one row per seat for
+  seated sections, one counter row per general-admission section.
+- `EventPublished` becomes a real in-process domain event with a real
+  subscriber. It was named in the domain model before anything emitted it; this
+  is what stops the bus being decorative.
+- Publishing becomes **one transaction**: the status `UPDATE` and the snapshot
+  of thousands of allocation rows commit together, or neither does.
+- The `published → on_sale` transition. `docs/domain-model.md` is binding, and
+  it says only an `on_sale` event accepts holds. It is the same conditional-
+  `UPDATE` shape as publish, so it costs little — and it keeps "visible" and
+  "sellable" as separate facts, which matters the moment you want an event
+  sitting ready before you open the doors on it.
 
-**Invariant under test:** `held + reserved ≤ capacity`, always.
+**Done when:** publishing a 200-seat event creates exactly 200 allocation rows
+in the same transaction, and a forced failure mid-snapshot leaves the event a
+draft with zero allocations.
 
-## Slice 3 — Checkout, payments, and the saga
+---
 
-Ordering appears. Cart backed by a hold → simulated payment with configurable
-latency and failure → reservation confirmed or hold released. Idempotency keys
-so a retried charge cannot double-charge. Compensating actions at every step.
+## Slice 2 — The hold, and the race ★
 
-## Slice 4 — Identity and authorization
+**This is the experiment.** Everything before it is setup; everything after it
+is variation.
 
-Accounts, sessions, roles. Deliberately late: attendee flows work anonymously
-against a hold until now, and doing auth last avoids the classic trap of
-spending the first two weeks on login screens.
+**What it forces:**
 
-## Slice 5 — Organizer console
+- `POST /api/v1/events/:id/holds` taking seat ids — `201` with the hold, or
+  `409` because someone else got there first. A holder is an opaque id for now;
+  authorization is deferred and anonymous claims are enough to race.
+- One locking strategy, chosen and understood: pessimistic
+  `SELECT ... FOR UPDATE` on the allocation rows. One, not three — comparing
+  strategies is the next slice, and you cannot compare against a baseline you
+  have not built.
+- **The flagship test.** N simultaneous requests for one seat; assert exactly
+  one `201` and exactly N−1 `409`. Asserted on the counts, never on the happy
+  path.
+- The invariant test: `held + reserved ≤ capacity` after any interleaving.
 
-Create and publish an event, define capacity and price tiers, watch sales. The
-first real test of whether the design system composes into dense, data-heavy UI
-rather than just marketing-shaped pages.
+**Three things that will silently invalidate this test, so build them in:**
 
-## Slice 6 — Operational maturity
+1. **The connection pool must exceed N.** TypeORM defaults to 10. Fire 200
+   concurrent holds against it and 190 queue in the pool before ever reaching
+   Postgres — you would be measuring pool queueing and concluding things about
+   locks. Set it explicitly, and treat it as a knob you vary on purpose.
+2. **Run the race in a loop, ~50 times.** A race that passes once proves
+   nothing; interleavings are sampled, not enumerated. A flaky pass is a
+   failure.
+3. **Assert the losers' reason.** N−1 requests failing is not the same as N−1
+   requests failing *because the seat was taken*. A connection error counts as
+   a loss and would hide a broken lock.
 
-Structured logging with correlation ids, metrics, tracing across the saga,
-notifications persisted from domain events, and a load-test harness. This is
-where the cloud runtime ADR gets written (ADR-0005) — with real requirements
-instead of predictions.
+**Done when:** `pnpm test:e2e` runs the race 50 times in CI, green every time,
+and the seat is held by exactly one holder in the database afterwards.
+
+---
+
+## Slice 3 — Three strategies, one graph
+
+Only now is comparison meaningful, because there is a working baseline to
+compare against.
+
+- **Pessimistic** — `SELECT ... FOR UPDATE` (the Slice 2 baseline).
+- **Optimistic** — a version column, and a retry loop on the lost update.
+- **Serializable** — `SERIALIZABLE` isolation with a retry on `40001`. The
+  third strategy, and the one most people never try; Postgres defaults to READ
+  COMMITTED and the difference deserves its own ADR.
+
+**What it forces:**
+
+- A load harness (k6 — scenarios are code, thresholds fail the run).
+- A scale seeder: one stadium, ~50k seats. 824 seats across the whole database
+  today is not enough to make anything contend.
+- p50/p95/p99, throughput, retry counts, and pool saturation. You cannot reason
+  about contention you cannot see.
+- `docs/experiments/`, one committed file per run: setup, numbers, conclusion.
+  A lab whose results live in terminal scrollback is a demo.
+
+**Then the interesting half.** Seated booking spreads contention across
+thousands of rows. **General admission is a single hot row** — the genuinely
+hard shape, and the one worth three implementations of its own:
+`UPDATE ... WHERE available >= n`, an advisory lock, and a sharded counter
+(contention ÷ N, at the cost of a harder "is the last one gone?" read).
+
+**Done when:** a committed experiment file states which strategy wins at which
+contention level, with numbers behind it.
+
+---
+
+## Not now
+
+Cut deliberately, so the experiment stays in focus. These keep their original
+numbers because code comments point at them.
+
+- **Hold expiry.** A *different* experiment — read-time enforcement, sweepers,
+  controllable time. Genuinely interesting, and it needs an injectable clock
+  before it is testable at all. It comes after the race is proven, not before.
+- **Slice 4 — Identity and authorization.** The race does not need to know who
+  is racing.
+- **Slice 5 — Organizer console.** Events are created over HTTP and seeded;
+  that is enough to publish one and race for its seats.
+- **Checkout, payments, the saga.** A hold is a sufficient claim to prove
+  exclusivity. Money adds a workflow, not concurrency.
+- **Notifications.** Nothing here needs telling.
+- **Seat map rendering in the browser.** The proof of this project is a test,
+  not a picture.

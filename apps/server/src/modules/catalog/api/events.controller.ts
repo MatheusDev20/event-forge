@@ -109,6 +109,24 @@ export class EventsController {
   }
 
   /**
+   * Opens sales on a published event.
+   *
+   * A second verb rather than a flag on publish, because they are two
+   * decisions: publishing settles capacity and hands it to Inventory, going on
+   * sale settles timing. Only an `on_sale` event accepts holds — which, from
+   * Slice 2, is the state the race is run against.
+   *
+   * Open to anyone, like the rest of this controller. Authorization is Slice 4.
+   */
+  @Post(':id/on-sale')
+  @HttpCode(HttpStatus.OK)
+  async openSales(
+    @Param('id', new ZodValidationPipe(eventIdSchema)) id: string,
+  ): Promise<EventDetail> {
+    return toEventDetail(await this.catalog.putEventOnSale(id));
+  }
+
+  /**
    * Replaces the event's hero image — the artwork behind its page.
    *
    * `POST`, not `PATCH`: the request body is the image itself, not a partial
