@@ -42,6 +42,13 @@ import { EventsModule } from './shared/events';
           username: read('DB_USERNAME'),
           password: read('DB_PASSWORD'),
           database: read('DB_NAME'),
+          /*
+           * Explicit, because the default of 10 would quietly turn the race
+           * test into a measurement of driver queueing — see DB_POOL_SIZE in
+           * src/config/env.ts, and the warning it comes from in
+           * docs/roadmap.md.
+           */
+          poolSize: read('DB_POOL_SIZE'),
           // Each module registers its own entities with forFeature; this picks
           // them up without a glob over build output.
           autoLoadEntities: true,
@@ -50,7 +57,32 @@ import { EventsModule } from './shared/events';
         };
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
+    /*
+     * Read from the environment, and switchable off with THROTTLE_LIMIT=0.
+     *
+     * The guard and the experiment want opposite things: it exists to stop one
+     * client sending hundreds of requests a minute, which is precisely what
+     * firing N simultaneous holds is. A fixed limit here turns the race's
+     * losers into 429s, and a rate limiter doing its job would read as a
+     * passing test — see test/hold-race.e2e-spec.ts.
+     */
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => {
+        const limit = config.getOrThrow('THROTTLE_LIMIT', { infer: true });
+
+        return {
+          throttlers: [
+            {
+              ttl: config.getOrThrow('THROTTLE_TTL_MS', { infer: true }),
+              // The guard has no "off" switch, so an unreachable ceiling is
+              // the off switch. Infinity is not serialisable into its storage.
+              limit: limit === 0 ? Number.MAX_SAFE_INTEGER : limit,
+            },
+          ],
+        };
+      },
+    }),
     CacheModule.register(),
     // Global, and registered before the contexts that use it: Inventory
     // subscribes to the bus in its own onModuleInit.

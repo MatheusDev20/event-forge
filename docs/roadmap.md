@@ -1,6 +1,6 @@
 # Roadmap — one experiment
 
-_Last updated: 2026-08-29_
+_Last updated: 2026-09-04_
 
 ## The experiment
 
@@ -21,18 +21,39 @@ the winners can.
 
 ## Where we are
 
-Slice 0 is done. Catalog exists and is deliberately boring: events, venues,
-seat maps (sections → rows → seats), price tiers, and a `draft → published`
-transition whose conditional `UPDATE ... WHERE status = 'draft'` is already the
-right shape — the database decides, the application only explains.
+**Slices 0, 1 and 2 are done. The experiment runs, and it is green.**
 
-**What is missing is scarcity.** There is nothing in this system to contend
-over yet. A seat is a row in a layout, not a unit anyone can claim. No two
-requests can currently conflict, so there is no race to win.
+`test/hold-race.e2e-spec.ts` fires 16 simultaneous claims at one seat, 50 times
+over, and asserts exactly one `201` and exactly 15 `409`s — every one of them
+carrying `ALLOCATION_UNAVAILABLE` rather than merely failing. Afterwards the
+seat is held by exactly one holder, named, in the database.
+
+It has been checked against a broken strategy, which is the only way to know a
+green run means anything: with `FOR UPDATE` removed from the locking query, the
+test fails. Note *how* it fails — not with an oversell, because
+`allocations_no_oversell_check` still refuses that write, but with losers
+failing for the wrong reason. That is the design working as intended: the
+constraint makes the bug impossible and the assertions make it visible.
+
+Two things the slice discovered, both now written down in
+`docs/adr/0007-pessimistic-locking-baseline.md`:
+
+- The **rate limiter** and the experiment want opposite things. `ThrottlerGuard`
+  at a fixed 60/minute turns the race's losers into `429`s — a guard doing its
+  job, read as a lock doing its job. It is configurable now, and off for the
+  race.
+- **Supertest binds a port per request** when handed a server that is not
+  listening. Sixteen concurrent calls each try to bind, and the resulting
+  `ECONNRESET` is indistinguishable from a request the API dropped. The race
+  suite calls `listen(0)` once, up front.
+
+**What is missing is comparison.** There is one strategy and one shape of
+contention worth measuring at any scale. 824 seats across the whole database
+is not enough to make anything queue, and no numbers have been recorded.
 
 ---
 
-## Slice 1 — Inventory, and the snapshot that creates scarcity
+## Slice 1 — Inventory, and the snapshot that creates scarcity ✅
 
 You cannot race for a seat until a seat is a thing that can be *claimed*. This
 slice turns Catalog's layout into Inventory's claimable units.
@@ -60,9 +81,12 @@ comment marking exactly where it hooks in.
 in the same transaction, and a forced failure mid-snapshot leaves the event a
 draft with zero allocations.
 
+**Done.** `test/publish-snapshot.e2e-spec.ts`. The `published → on_sale`
+transition landed with it.
+
 ---
 
-## Slice 2 — The hold, and the race ★
+## Slice 2 — The hold, and the race ★ ✅
 
 **This is the experiment.** Everything before it is setup; everything after it
 is variation.
@@ -96,6 +120,17 @@ is variation.
 
 **Done when:** `pnpm test:e2e` runs the race 50 times in CI, green every time,
 and the seat is held by exactly one holder in the database afterwards.
+
+**Done.** `test/hold-race.e2e-spec.ts`, and it covers more than the seated
+race: the general-admission counter sells down to exactly its capacity and no
+further, a multi-seat claim is all-or-nothing, and opposed lock orders do not
+deadlock. `POST /api/v1/events/:id/holds` is the endpoint;
+`GET /api/v1/events/:id/availability` came with it, because a client has to
+learn an allocation id from somewhere and reaching into the database is not an
+API.
+
+One addition to the three guards above, learnt the hard way: **the rate limiter
+counts as a fourth.** See "Where we are".
 
 ---
 

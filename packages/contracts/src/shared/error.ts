@@ -38,6 +38,20 @@ export const ERROR_CODES = {
    * can act on it: the fix is a smaller file, not a corrected field.
    */
   PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  /**
+   * The units asked for are not free. A 409, like CONFLICT, but distinguished
+   * because it is the *expected* answer on the hold path rather than an
+   * anomaly: in a race for one seat, every loser gets this, and a client — or
+   * a test counting winners — must be able to tell "someone else got it" from
+   * "the event is not on sale" and from "your connection died".
+   */
+  ALLOCATION_UNAVAILABLE: 'ALLOCATION_UNAVAILABLE',
+  /**
+   * The event exists and is not selling. Separate from ALLOCATION_UNAVAILABLE
+   * because nothing about the request was wrong and retrying the same body
+   * will work once the doors open.
+   */
+  EVENT_NOT_ON_SALE: 'EVENT_NOT_ON_SALE',
   INTERNAL: 'INTERNAL',
 } as const;
 

@@ -12,6 +12,8 @@ import { SeatRowEntity } from '../modules/catalog/infrastructure/entities/seat-r
 import { SectionEntity } from '../modules/catalog/infrastructure/entities/section.entity';
 import { VenueEntity } from '../modules/catalog/infrastructure/entities/venue.entity';
 import { AllocationEntity } from '../modules/inventory/infrastructure/entities/allocation.entity';
+import { HoldEntity } from '../modules/inventory/infrastructure/entities/hold.entity';
+import { HoldLineEntity } from '../modules/inventory/infrastructure/entities/hold-line.entity';
 
 loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
 
@@ -27,6 +29,8 @@ loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
 export const entities = [
   AllocationEntity,
   EventEntity,
+  HoldEntity,
+  HoldLineEntity,
   OrganizerEntity,
   PriceTierEntity,
   PriceTierSectionEntity,
@@ -44,6 +48,10 @@ export const dataSourceOptions: DataSourceOptions = {
   username: process.env.DB_USERNAME ?? 'postgres',
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'postgres',
+  // Matches app.module.ts so the CLI and the app describe one database the
+  // same way; migrations never need more than one connection, but a value
+  // that disagrees with the app's is a trap for whoever reads this next.
+  poolSize: Number(process.env.DB_POOL_SIZE ?? 50),
   entities,
   migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
   // Never true. Schema changes go through reviewed migrations — see

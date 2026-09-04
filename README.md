@@ -160,6 +160,80 @@ Adding a third backend is one class implementing `HeroImageStorage` and one
 branch in `catalog.module.ts`; nothing above that port knows a file or a bucket
 was involved.
 
+### Holds and the race
+
+`POST /api/v1/events/:id/holds` claims capacity. It is the endpoint this whole
+project exists to test.
+
+```bash
+# What is left, and the allocation ids a hold names
+curl "http://localhost:3001/api/v1/events/<id>/availability?onlyAvailable=true"
+
+# Claim one seat (holderId is optional; the server mints one)
+curl -X POST http://localhost:3001/api/v1/events/<id>/holds \
+  -H 'content-type: application/json' \
+  -d '{"lines":[{"allocationId":"<allocation-id>"}]}'
+```
+
+The event must be `on_sale`, so the full path from nothing to a claim is
+`POST /events` → `POST /events/:id/publish` → `POST /events/:id/on-sale`.
+Publishing is what creates the allocation rows (ADR-0006); going on sale is
+what makes them claimable.
+
+Failures are distinguished by `code`, not just by status, and the distinction
+is the point:
+
+| Status | `code`                   | Means                                      |
+| ------ | ------------------------ | ------------------------------------------ |
+| 400    | `VALIDATION_FAILED`      | Malformed body, or the same seat twice     |
+| 404    | `NOT_FOUND`              | No such event, or not its allocations      |
+| 409    | `EVENT_NOT_ON_SALE`      | Right request, closed doors                |
+| 409    | `ALLOCATION_UNAVAILABLE` | **Someone else got there first**           |
+
+Only the last is what a race produces. Collapsing them into one `409` would let
+a broken client, a closed event and a dropped connection all count as
+well-behaved losers — and the experiment's headline assertion would stop
+meaning anything.
+
+A seated line always takes one unit; a general-admission line takes `quantity`
+units out of a single counter row. That asymmetry is deliberate — thousands of
+warm rows against one hot one, through the same endpoint. See
+`docs/adr/0006-seat-map-snapshot.md`.
+
+#### Running the experiment
+
+```bash
+pnpm --filter @repo/server test:e2e
+```
+
+`test/hold-race.e2e-spec.ts` fires 16 simultaneous claims at one seat, 50 times,
+and asserts exactly one winner and exactly 15 losers — each with
+`ALLOCATION_UNAVAILABLE`, not merely "not a 201". Then it checks the database:
+one unit held, by the holder the API said won.
+
+**Two environment values are part of the measurement, not incidental:**
+
+| Variable         | Why it matters                                                        |
+| ---------------- | --------------------------------------------------------------------- |
+| `DB_POOL_SIZE`   | TypeORM defaults to 10. Fire 16 concurrent holds at a pool of 10 and six queue in the driver, never contending — you would be measuring pool scheduling. Default 50; the race asserts it exceeds its own concurrency. |
+| `THROTTLE_LIMIT` | `ThrottlerGuard` exists to refuse exactly the traffic a race produces. At 60/minute the losers come back as `429`s — a rate limiter working correctly, read as a lock working correctly. `0` disables it; the e2e suite sets that. |
+
+The strategy is pessimistic `SELECT … FOR UPDATE`, ordered by id so two claims
+naming the same seats in opposite orders cannot deadlock. It is a *baseline* —
+optimistic and serializable are the next slice, and a comparison against a
+baseline nobody built is fiction. See
+`docs/adr/0007-pessimistic-locking-baseline.md`.
+
+Underneath all of it is `allocations_no_oversell_check`. Remove `FOR UPDATE`
+and the race test goes red — but not with an oversell, because the constraint
+still refuses that write. It goes red because the losers start failing for the
+wrong reason, which is the difference between an experiment and a hope.
+
+**Hold expiry is recorded and not enforced.** Every hold has an `expires_at`;
+nothing sweeps it and no read discounts it, so an expired hold keeps its units
+off sale. That is a deliberate gap — it is a different experiment, and it needs
+an injectable clock before it is testable at all.
+
 ### Architecture
 
 Decisions live in `docs/`, and the ones that were expensive to make are written
@@ -169,6 +243,16 @@ down rather than inferred from the code:
 - `docs/domain-model.md` — the bounded contexts and their vocabulary
 - `docs/roadmap.md` — the vertical slices, in order
 - `docs/adr/` — one file per architectural decision
+- `docs/data-model.html` — **all twelve tables on one page**, interactive; open
+  it in a browser. Five guided views walk it in order: the room, the sale, the
+  gap, the claim, the contended row. Regenerate from
+  `docs/data-model.architecture.json` with the `archify` skill.
+
+The one thing to carry into every file below it: **a seat exists twice, on
+purpose.** `seats` is Catalog's description of a room and is reused by every
+event held there. `allocations` is Inventory's stock for one event, created at
+publish by *copying* the labels — no foreign key, no join. That is why a ticket
+sold last year still prints what was sold after the venue re-letters its rows.
 
 ### Deploying the server (AWS Lambda) — dormant
 

@@ -29,7 +29,50 @@ const envShape = z.object({
   DB_PASSWORD: z.string().min(1).default('postgres'),
   DB_NAME: z.string().min(1).default('postgres'),
 
+  /**
+   * How many Postgres connections this process may hold open.
+   *
+   * **A knob, not a detail.** TypeORM's default is 10, and the race test fires
+   * more concurrent holds than that: with a small pool, most requests queue in
+   * the driver before reaching Postgres at all, the lock is never contended,
+   * and the experiment measures pool scheduling while reporting conclusions
+   * about locking. docs/roadmap.md names this as one of three things that
+   * silently invalidate the result, which is why it is explicit here rather
+   * than inherited.
+   *
+   * The default is deliberately larger than the concurrency the race uses, so
+   * a run is contending on rows. Turning it *down* on purpose is a legitimate
+   * experiment — Slice 3 varies it — and the point is that either way the
+   * number is chosen and written down.
+   */
+  DB_POOL_SIZE: z.coerce.number().int().min(1).max(1000).default(50),
+
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
+
+  /* ---------------------------------------------------------------- *
+   * Rate limiting
+   *
+   * Configurable rather than hardcoded because of a collision this project
+   * discovered the hard way: the guard's job is to stop one client firing
+   * hundreds of requests in a minute, and that is *exactly* what the hold race
+   * does. Left at a fixed 60/minute, the experiment's losers come back as 429s
+   * — which is a rate limiter working correctly and an experiment measuring
+   * nothing.
+   *
+   * So the limit is a value the operator sets, and the race (and Slice 3's
+   * load harness) raises it deliberately, in one place, with a reason.
+   * ---------------------------------------------------------------- */
+
+  /** Window in milliseconds. */
+  THROTTLE_TTL_MS: z.coerce.number().int().min(1).default(60_000),
+  /**
+   * Requests allowed per window, per client.
+   *
+   * `0` disables the guard entirely. That is not a convenience — it is the
+   * only honest setting for a concurrency benchmark, where every refusal must
+   * come from the domain rather than from a counter in front of it.
+   */
+  THROTTLE_LIMIT: z.coerce.number().int().min(0).default(60),
 
   /* ---------------------------------------------------------------- *
    * Uploads

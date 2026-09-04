@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { DomainEventBus } from '../../../shared/events';
+import type { EventStatus } from '../domain/event';
 import { acceptHeroImage } from '../domain/hero-image';
 import type { HeroImageRejection, HeroImageUpload } from '../domain/hero-image';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
@@ -255,6 +256,21 @@ export class CatalogService {
     }
 
     return this.readBack(id, 'Opened for sale');
+  }
+
+  /**
+   * An event's status, for another bounded context.
+   *
+   * Inventory asks this before granting a hold, because docs/domain-model.md
+   * is binding: only an `on_sale` event accepts holds. Catalog answers with a
+   * status and nothing else — Inventory has no business reading an event, and
+   * this method is what keeps that true while still letting the rule be
+   * enforced.
+   *
+   * Null means no such event. The caller decides whether that is a 404.
+   */
+  getEventStatus(id: string): Promise<EventStatus | null> {
+    return this.events.findStatus(id);
   }
 
   /**

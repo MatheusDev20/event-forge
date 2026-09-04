@@ -139,6 +139,23 @@ export class EventsRepository {
   }
 
   /**
+   * Just the status, by id. Null when there is no such event.
+   *
+   * Separate from `findById` because this one is on the hold path, which is
+   * the only latency-sensitive read in the system: `findById` joins the venue,
+   * the organizer and every price tier to answer a question about one varchar.
+   * `select` keeps it a single-column lookup on the primary key.
+   */
+  async findStatus(id: string): Promise<EventStatus | null> {
+    const event = await this.events.findOne({
+      where: { id },
+      select: { status: true },
+    });
+
+    return event?.status ?? null;
+  }
+
+  /**
    * Checks everything a create request points at, in one round of queries.
    *
    * Two of these the database would catch on its own — a missing venue or

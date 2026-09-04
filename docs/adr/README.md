@@ -15,3 +15,4 @@ touching the design system's public surface usually do.
 | [0004](0004-design-system-tokens.md)    | Tokens + headless primitives; drop daisyUI   | Accepted |
 | [0005](0005-local-first-runtime.md)     | Local-first runtime; cloud deploy deferred   | Accepted |
 | [0006](0006-seat-map-snapshot.md)       | Catalog owns the seat map; Inventory snapshots it | Accepted |
+| [0007](0007-pessimistic-locking-baseline.md) | Pessimistic row locking as the hold baseline | Accepted |

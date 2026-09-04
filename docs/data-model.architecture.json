@@ -1,0 +1,393 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Event-Forge Data Model",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1340,
+      650
+    ],
+    "views": [
+      {
+        "id": "the-room",
+        "label": "1. The room",
+        "focus": [
+          "venues",
+          "seat_maps",
+          "sections",
+          "seat_rows",
+          "seats"
+        ],
+        "note": "A layout described once and reused. It exists whether or not anything is on sale in it."
+      },
+      {
+        "id": "the-sale",
+        "label": "2. The sale",
+        "focus": [
+          "organizers",
+          "events",
+          "price_tiers",
+          "price_tier_sections",
+          "sections"
+        ],
+        "note": "An event happens in a room on a date, and every section it sells must carry a price."
+      },
+      {
+        "id": "the-gap",
+        "label": "3. The gap",
+        "focus": [
+          "events",
+          "seats",
+          "allocations"
+        ],
+        "note": "Publishing copies the layout into stock. Nothing joins the two halves afterwards."
+      },
+      {
+        "id": "the-claim",
+        "label": "4. The claim",
+        "focus": [
+          "allocations",
+          "holds",
+          "hold_lines"
+        ],
+        "note": "Holds are a ledger of who moved the numbers on an allocation row."
+      },
+      {
+        "id": "contended",
+        "label": "5. The contended row",
+        "focus": [
+          "allocations",
+          "hold_lines"
+        ],
+        "note": "held and reserved are the only mutable numbers in the schema. Everything else is written once."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "organizers",
+      "type": "database",
+      "label": "organizers",
+      "sublabel": "who owns an event",
+      "pos": [
+        60,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "venues",
+      "type": "database",
+      "label": "venues",
+      "sublabel": "a physical place",
+      "pos": [
+        60,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "seat_maps",
+      "type": "database",
+      "label": "seat_maps",
+      "sublabel": "a reusable layout",
+      "tag": "shared by events",
+      "pos": [
+        320,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "sections",
+      "type": "database",
+      "label": "sections",
+      "sublabel": "seated or general admission",
+      "tag": "kind + capacity",
+      "pos": [
+        580,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "seat_rows",
+      "type": "database",
+      "label": "seat_rows",
+      "sublabel": "row A, row B",
+      "pos": [
+        840,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "seats",
+      "type": "database",
+      "label": "seats",
+      "sublabel": "a chair in a room",
+      "tag": "describes, never sells",
+      "pos": [
+        1100,
+        70
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "events",
+      "type": "database",
+      "label": "events",
+      "sublabel": "a happening, on a date",
+      "tag": "draft → published → on_sale",
+      "pos": [
+        320,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "price_tiers",
+      "type": "database",
+      "label": "price_tiers",
+      "sublabel": "a named price band",
+      "pos": [
+        580,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "price_tier_sections",
+      "type": "database",
+      "label": "price_tier_sections",
+      "sublabel": "tier ↔ section join",
+      "pos": [
+        840,
+        250
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "holds",
+      "type": "database",
+      "label": "holds",
+      "sublabel": "one claimant, one moment",
+      "tag": "expires_at: written, not enforced",
+      "pos": [
+        580,
+        440
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "hold_lines",
+      "type": "database",
+      "label": "hold_lines",
+      "sublabel": "which units, how many",
+      "pos": [
+        840,
+        440
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "allocations",
+      "type": "database",
+      "label": "allocations",
+      "sublabel": "the contended row",
+      "tag": "CHECK held + reserved ≤ capacity",
+      "pos": [
+        1100,
+        440
+      ],
+      "size": [
+        160,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Catalog — what exists",
+      "wraps": [
+        "organizers",
+        "venues",
+        "seat_maps",
+        "sections",
+        "seat_rows",
+        "seats",
+        "events",
+        "price_tiers",
+        "price_tier_sections"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Inventory — what is free",
+      "wraps": [
+        "holds",
+        "hold_lines",
+        "allocations"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "venue-owns-layout",
+      "from": "venues",
+      "to": "seat_maps"
+    },
+    {
+      "id": "layout-has-sections",
+      "from": "seat_maps",
+      "to": "sections"
+    },
+    {
+      "id": "sections-have-rows",
+      "from": "sections",
+      "to": "seat_rows",
+      "label": "seated only"
+    },
+    {
+      "id": "rows-have-seats",
+      "from": "seat_rows",
+      "to": "seats"
+    },
+    {
+      "id": "organizer-owns-event",
+      "from": "organizers",
+      "to": "events"
+    },
+    {
+      "id": "event-happens-at-venue",
+      "from": "venues",
+      "to": "events"
+    },
+    {
+      "id": "event-uses-layout",
+      "from": "seat_maps",
+      "to": "events",
+      "label": "composite FK",
+      "labelDy": 60
+    },
+    {
+      "id": "event-priced-in-bands",
+      "from": "events",
+      "to": "price_tiers"
+    },
+    {
+      "id": "band-covers-sections",
+      "from": "price_tiers",
+      "to": "price_tier_sections"
+    },
+    {
+      "id": "every-section-priced",
+      "from": "sections",
+      "to": "price_tier_sections",
+      "label": "must be priced"
+    },
+    {
+      "id": "publish-snapshot",
+      "from": "events",
+      "to": "allocations",
+      "label": "snapshot at publish · no FK",
+      "variant": "dashed",
+      "width": 2.5,
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          400,
+          570
+        ],
+        [
+          1180,
+          570
+        ]
+      ]
+    },
+    {
+      "id": "seat-becomes-stock",
+      "from": "seats",
+      "to": "allocations",
+      "label": "labels copied · no FK",
+      "variant": "dashed",
+      "width": 2.5,
+      "labelDy": 130
+    },
+    {
+      "id": "hold-has-lines",
+      "from": "holds",
+      "to": "hold_lines",
+      "label": "CASCADE"
+    },
+    {
+      "id": "line-claims-units",
+      "from": "allocations",
+      "to": "hold_lines",
+      "label": "units claimed",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Catalog — what exists",
+      "items": [
+        "Two chains: a room (venues → seats) and a sale (organizers → events → price_tiers)",
+        "Foreign keys and cascades throughout; a general-admission section has capacity but no rows or seats"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "The gap — ADR-0001 + ADR-0006",
+      "items": [
+        "allocations.event_id and holds.event_id are plain uuids with no foreign key",
+        "Publish copies the labels rather than pointing at them, so a ticket survives the venue being re-lettered"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Inventory — what is free",
+      "items": [
+        "One allocation row per seat (capacity 1); one row per GA section (capacity 500) — the hot row",
+        "held and reserved are the only mutable numbers in the schema; holds are the ledger of who moved them"
+      ]
+    }
+  ]
+}

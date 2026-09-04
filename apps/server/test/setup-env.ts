@@ -9,10 +9,23 @@ import { join } from 'node:path';
  * hook runs the environment has already been read and validated. Jest loads
  * this file first, which is the only point early enough.
  *
- * Only the upload settings are overridden. Everything else — the database
- * above all — stays exactly as `.env` and CI configure it, because e2e tests
- * are supposed to run against the real thing.
+ * The uploads and the rate limiter are overridden. Everything else — the
+ * database above all — stays exactly as `.env` and CI configure it, because
+ * e2e tests are supposed to run against the real thing.
  */
+
+/**
+ * Off, and this one is not a convenience.
+ *
+ * The hold race fires N simultaneous requests from one client, dozens of times
+ * — which is the exact traffic shape ThrottlerGuard exists to refuse. Left on,
+ * the race's losers come back as 429s and the suite would report a rate
+ * limiter doing its job as a locking strategy doing its job. Every refusal in
+ * these tests has to come from the domain, so nothing may stand in front of it.
+ *
+ * Slice 3's load harness will need the same, for the same reason.
+ */
+process.env.THROTTLE_LIMIT = '0';
 
 /**
  * Per-process so parallel Jest workers cannot delete each other's files. Not

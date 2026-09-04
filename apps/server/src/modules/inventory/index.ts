@@ -8,6 +8,12 @@
 export { InventoryModule } from './inventory.module';
 export { InventoryService } from './application/inventory.service';
 export {
+  HOLD_STATUSES,
+  HOLD_TTL_SECONDS,
+  availableUnits,
+  type HoldStatus,
+} from './domain/hold';
+export {
   ALLOCATION_KINDS,
   allocatableUnits,
   snapshotCapacity,
