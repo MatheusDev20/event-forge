@@ -18,10 +18,12 @@
     "db:migrate:revert": "pnpm --filter @repo/server run db:migrate:revert",
     "db:migrate:generate": "pnpm --filter @repo/server run db:migrate:generate",
     "db:seed": "pnpm --filter @repo/server run db:seed",
+    "db:seed:simple": "pnpm --filter @repo/server run db:seed:simple",
     "db:migrate:show": "pnpm --filter @repo/server run db:migrate:show",
     "db:migrate:create": "pnpm --filter @repo/server run db:migrate:create",
     "db:migrate:check": "pnpm --filter @repo/server run db:migrate:check",
-    "db:fresh": "pnpm --filter @repo/server run db:fresh"
+    "db:fresh": "pnpm --filter @repo/server run db:fresh",
+    "db:fresh:simple": "pnpm --filter @repo/server run db:fresh:simple"
   },
   "devDependencies": {
     "prettier": "^3.9.6",
