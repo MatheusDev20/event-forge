@@ -31,6 +31,7 @@ import { SeatEntity } from './entities/seat.entity';
 import { SeatMapEntity } from './entities/seat-map.entity';
 import { SectionEntity } from './entities/section.entity';
 import { VenueEntity } from './entities/venue.entity';
+import { SECTION_SEAT_COUNT } from './section-seat-count';
 
 /**
  * Cheapest tier for an event, as a scalar subquery. Kept as a constant because
@@ -41,18 +42,6 @@ const MIN_TIER_PRICE = `(
   SELECT MIN(tier.price_amount_minor)
   FROM price_tiers tier
   WHERE tier.event_id = event.id
-)`;
-
-/**
- * How many seats a section actually contains, counted through its rows. Zero
- * for general admission, which has no rows by design — `sectionCapacity` reads
- * the counter column for those instead.
- */
-const SECTION_SEAT_COUNT = `(
-  SELECT COUNT(*)
-  FROM seats seat
-  JOIN seat_rows seat_row ON seat_row.id = seat.row_id
-  WHERE seat_row.section_id = section.id
 )`;
 
 /**

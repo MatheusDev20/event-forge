@@ -11,7 +11,10 @@ Grown from a fullstack monorepo template (Turborepo + pnpm).
 
 - [NestJS](https://docs.nestjs.com/) API under `apps/server` — a modular
   monolith, one Nest module per bounded context
-- [Next.js](https://nextjs.org/) web app under `apps/web`
+- [Next.js](https://nextjs.org/) storefront under `apps/web` — the public side:
+  browse, filter, open an event
+- [Next.js](https://nextjs.org/) organizer console under `apps/console` — the
+  B2B side: draft, price, publish, open sales. A shell today (Slice 5)
 
 ### Packages
 
@@ -27,6 +30,7 @@ Grown from a fullstack monorepo template (Turborepo + pnpm).
 pnpm install
 cp apps/server/.env.example apps/server/.env
 cp apps/web/.env.example apps/web/.env.local
+cp apps/console/.env.example apps/console/.env.local
 
 # Terminal 1 — Postgres 18 on localhost:5433 (5432 is often already taken)
 pnpm db:up
@@ -37,13 +41,14 @@ pnpm db:seed
 pnpm dev
 ```
 
-`pnpm dev` runs three watchers under turbo: `@repo/contracts` (tsc --watch),
-`apps/server` (nest --watch) and `apps/web` (next dev). Contracts are compiled
-once before the watchers start, so the server finds them on its first boot.
+`pnpm dev` runs four watchers under turbo: `@repo/contracts` (tsc --watch),
+`apps/server` (nest --watch), `apps/web` and `apps/console` (next dev).
+Contracts are compiled once before the watchers start, so the server finds them
+on its first boot.
 
 | Command                               | What it does                                        |
 | ------------------------------------- | --------------------------------------------------- |
-| `pnpm dev`                            | Contracts watch + server + web, all hot-reloading   |
+| `pnpm dev`                            | Contracts watch + server + both web apps, hot       |
 | `pnpm db:up` / `db:down`              | Local Postgres lifecycle                            |
 | `pnpm db:reset`                       | Drops the volume and recreates the database         |
 | `pnpm db:migrate`                     | Applies pending migrations (see Schema changes)     |
@@ -52,10 +57,11 @@ once before the watchers start, so the server finds them on its first boot.
 | `pnpm lint` / `pnpm build`            | Workspace-wide                                      |
 | `pnpm test`                           | Unit tests                                          |
 
-|               | Port |                                                                   |
-| ------------- | ---- | ----------------------------------------------------------------- |
-| `apps/web`    | 3000 | `next dev`'s default                                              |
-| `apps/server` | 3001 | overridable with `PORT`; they'd collide on 3000 under `turbo dev` |
+|                | Port |                                                                   |
+| -------------- | ---- | ----------------------------------------------------------------- |
+| `apps/web`     | 3000 | `next dev`'s default                                              |
+| `apps/server`  | 3001 | overridable with `PORT`; they'd collide on 3000 under `turbo dev` |
+| `apps/console` | 3002 | the next one free; all three run together under `turbo dev`       |
 
 The API answers on `http://localhost:3001/health`; everything else sits behind
 the `api/v1` prefix, which is what `NEXT_PUBLIC_BACKEND_URL` points the web app
@@ -303,6 +309,9 @@ credentials instead.
 │  │  ├─ package.json
 │  │  └─ ...
 │  ├─web/
+│  │  ├─ package.json
+│  │  └─ ...
+│  ├─console/
 │  │  ├─ package.json
 │  │  └─ ...
 │

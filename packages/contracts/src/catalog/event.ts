@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { moneySchema } from '../shared/money';
 import { paginatedSchema, paginationQuerySchema } from '../shared/pagination';
+// Defined in ./venue, not re-exported here: index.ts star-exports both files,
+// so a second export of the same name would be a conflict rather than a
+// convenience.
+import { venueSummarySchema } from './venue';
 
 /**
  * Catalog contracts — the wire shapes for browsing events.
@@ -48,13 +52,6 @@ export const eventSlugSchema = z
  * publishing should not stop working because the marketing copy changed.
  */
 export const eventIdSchema = z.uuid();
-
-export const venueSummarySchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  city: z.string(),
-  country: z.string().length(2),
-});
 
 export const organizerSummarySchema = z.object({
   id: z.uuid(),
@@ -112,7 +109,6 @@ export const listEventsResponseSchema = paginatedSchema(eventSummarySchema);
 export type EventId = z.infer<typeof eventIdSchema>;
 export type EventStatus = z.infer<typeof eventStatusSchema>;
 export type EventCategory = z.infer<typeof eventCategorySchema>;
-export type VenueSummary = z.infer<typeof venueSummarySchema>;
 export type OrganizerSummary = z.infer<typeof organizerSummarySchema>;
 export type PriceTier = z.infer<typeof priceTierSchema>;
 export type EventSummary = z.infer<typeof eventSummarySchema>;

@@ -7,7 +7,11 @@
  * error rather than a code-review comment.
  */
 export { CatalogModule } from './catalog.module';
-export { CatalogService, type EventPage } from './application/catalog.service';
+export {
+  CatalogService,
+  type EventPage,
+  type VenuePage,
+} from './application/catalog.service';
 export type { EventCategory, EventStatus } from './domain/event';
 export {
   SECTION_KINDS,
@@ -16,7 +20,10 @@ export {
   type LayoutSeat,
   type LayoutSection,
   type SeatMapLayout,
+  type SeatMapSection,
   type SectionCapacity,
   type SectionKind,
+  type VenueSeatMap,
 } from './domain/seat-map';
 export type { ListEventsCriteria } from './domain/list-events-criteria';
+export type { ListVenuesCriteria } from './domain/list-venues-criteria';

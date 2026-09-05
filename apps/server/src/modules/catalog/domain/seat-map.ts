@@ -98,3 +98,34 @@ export type SeatMapLayout = {
   seatMapId: string;
   sections: readonly LayoutSection[];
 };
+
+/* ------------------------------------------------------------------ *
+ * The layout, as the catalogue lists it
+ * ------------------------------------------------------------------ */
+
+/**
+ * One section of a listed layout.
+ *
+ * `SectionCapacity` and nothing more, plus the two fields needed to name the
+ * thing: this carries the *facts* capacity is derived from — the counter, the
+ * seat count — rather than a resolved number, so `sectionCapacity` above stays
+ * the only implementation of the rule. The mapper resolves it at the edge.
+ */
+export type SeatMapSection = SectionCapacity & {
+  id: string;
+  name: string;
+};
+
+/**
+ * A venue's layout, listed rather than exported.
+ *
+ * Distinct from `SeatMapLayout` above, which exists for Inventory and carries
+ * every seat. This one stops at the section: a client choosing which sections
+ * to price needs eight rows, not fifty thousand, and handing it the snapshot
+ * shape would make the cheap question cost what the expensive one does.
+ */
+export type VenueSeatMap = {
+  id: string;
+  name: string;
+  sections: readonly SeatMapSection[];
+};

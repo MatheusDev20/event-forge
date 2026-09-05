@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import type { Env } from '../../config/env';
 import { EventsController } from './api/events.controller';
+import { VenuesController } from './api/venues.controller';
 import { CatalogService } from './application/catalog.service';
 import { EventEntity } from './infrastructure/entities/event.entity';
 import { OrganizerEntity } from './infrastructure/entities/organizer.entity';
@@ -16,6 +17,7 @@ import { VenueEntity } from './infrastructure/entities/venue.entity';
 import { EventsRepository } from './infrastructure/events.repository';
 import { HeroImageStorage } from './infrastructure/hero-image.storage';
 import { LocalHeroImageStorage } from './infrastructure/local-hero-image.storage';
+import { VenuesRepository } from './infrastructure/venues.repository';
 import { S3HeroImageStorage } from './infrastructure/s3/event-hero/s3-hero-image.storage';
 
 /**
@@ -72,8 +74,13 @@ const heroImageStorageProvider = {
       VenueEntity,
     ]),
   ],
-  controllers: [EventsController],
-  providers: [CatalogService, EventsRepository, heroImageStorageProvider],
+  controllers: [EventsController, VenuesController],
+  providers: [
+    CatalogService,
+    EventsRepository,
+    VenuesRepository,
+    heroImageStorageProvider,
+  ],
   exports: [CatalogService],
 })
 export class CatalogModule {}

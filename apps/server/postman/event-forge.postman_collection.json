@@ -1,0 +1,672 @@
+{
+  "info": {
+    "_postman_id": "8f2c1a44-6f3e-4b8d-9c17-2a5e0b7d4e10",
+    "name": "Event Forge API",
+    "description": "HTTP surface of `@repo/server` (NestJS).\n\n**Prefixes**\n- Every API route is mounted under `api/v1` (`app.setGlobalPrefix`).\n- `/health` is *excluded* from the prefix so infra probes keep a stable path across API versions.\n- `/uploads/*` is also outside the prefix — a stored `heroImageUrl` must outlive the version that wrote it.\n\n**Getting started**: `pnpm db:up && pnpm db:fresh`, then `pnpm dev`. Run the **Catalog · Venues** folder first — it fills the ids the create-event request needs.\n\n**Auth**: none. Every endpoint is open; authorization is Slice 4.\n\n**Errors**: all endpoints return the flat shape from `@repo/contracts/shared` — `{ statusCode, code, message, details?, path, timestamp }`, where `code` is one of `VALIDATION_FAILED`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `PAYLOAD_TOO_LARGE`, `ALLOCATION_UNAVAILABLE`, `EVENT_NOT_ON_SALE`, `INTERNAL`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001",
+      "type": "string",
+      "description": "PORT defaults to 3001 — apps/web owns 3000."
+    },
+    {
+      "key": "apiPrefix",
+      "value": "api/v1",
+      "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string",
+      "description": "UUID. Auto-filled by 'Create event' and 'List events'."
+    },
+    {
+      "key": "eventSlug",
+      "value": "",
+      "type": "string",
+      "description": "Lowercase hyphenated slug. Auto-filled by 'List events'."
+    },
+    {
+      "key": "allocationId",
+      "value": "",
+      "type": "string",
+      "description": "Inventory allocation UUID. Auto-filled by 'List availability'."
+    },
+    {
+      "key": "holderId",
+      "value": "",
+      "type": "string",
+      "description": "Optional UUID identifying the claimant. Left blank, the server mints an anonymous one."
+    },
+    {
+      "key": "venueId",
+      "value": "",
+      "type": "string",
+      "description": "From the seed (`pnpm db:seed`). There is no venues endpoint yet."
+    },
+    {
+      "key": "organizerId",
+      "value": "",
+      "type": "string",
+      "description": "From the seed."
+    },
+    {
+      "key": "seatMapId",
+      "value": "",
+      "type": "string",
+      "description": "From the seed. Must belong to venueId — the server checks."
+    },
+    {
+      "key": "sectionId",
+      "value": "",
+      "type": "string",
+      "description": "From the seed. A price tier prices at least one."
+    },
+    {
+      "key": "uploadFilename",
+      "value": "",
+      "type": "string",
+      "description": "Basename out of a returned heroImageUrl."
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "description": "Liveness probe. Outside the versioned prefix and outside the throttler (`@SkipThrottle`).",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "`GET /health` → `200 { \"message\": \"ok\" }`.\n\nNote the missing `api/v1`: this path is deliberately stable across API versions."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Catalog · Venues",
+      "description": "Read-only discovery. `VenuesController`, routed at `venues`.\n\nNothing here writes — venues and seat maps arrive with `pnpm db:seed`. These exist so `POST /events` is callable: it demands a `venueId`, a `seatMapId` and `sectionIds`, and this is where a client learns them.\n\n**Run these two first.** Their test scripts fill `{{venueId}}`, `{{seatMapId}}` and `{{sectionId}}`, which 'Create event' then uses.",
+      "item": [
+        {
+          "name": "List venues",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.items && body.items[0];",
+                  "if (first) {",
+                  "  pm.collectionVariables.set('venueId', first.id);",
+                  "  console.log('Captured venue', first.name, first.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/venues?page=1&pageSize=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "venues"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "int ≥ 1. Default 1."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "12",
+                  "description": "int 1–48. Default 12."
+                },
+                {
+                  "key": "q",
+                  "value": "theatro",
+                  "description": "Free text over the venue name (1–120 chars). ILIKE, case-insensitive.",
+                  "disabled": true
+                },
+                {
+                  "key": "city",
+                  "value": "São Paulo",
+                  "description": "1–80 chars, case-insensitive.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "`GET /api/v1/venues` → `200 { items: VenueSummary[], meta }`.\n\n`VenueSummary` = `{ id, name, city, country }` — the same shape embedded in every event.\n\nOrdered by city, then name, then id. The id tiebreak is not decoration: without a total order two venues sharing a name in a city can swap between queries and slip across a page boundary.\n\nUnlike the event listing there is no visibility filter — a building has no status to hide behind.\n\nThe test script stores the first result in `{{venueId}}`."
+          },
+          "response": []
+        },
+        {
+          "name": "List a venue's seat maps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const map = (body.items || []).find((m) => m.sections.length > 0);",
+                  "if (map) {",
+                  "  pm.collectionVariables.set('seatMapId', map.id);",
+                  "  pm.collectionVariables.set('sectionId', map.sections[0].id);",
+                  "  console.log('Captured layout', map.name, '-', map.sections.length, 'sections,', map.capacity, 'units');",
+                  "  console.log('Sections to price:', map.sections.map((s) => s.name + ' (' + s.capacity + ')').join(', '));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/venues/{{venueId}}/seat-maps",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "venues",
+                "{{venueId}}",
+                "seat-maps"
+              ]
+            },
+            "description": "`GET /api/v1/venues/:venueId/seat-maps` → `200 { items: SeatMap[] }`.\n\nBy **venue id**, not a slug — a venue is a building, not a page anyone links to.\n\n```\n{ id, name, capacity, sections: [{ id, name, kind, capacity }] }\n```\n\n`capacity` is the **resolved unit count**, not the nullable column behind it: seats for a `seated` section, the counter for `general_admission`. The seat map's `capacity` is those summed — what Inventory snapshots at publish.\n\n**No pagination.** A venue's layouts are bounded by the building, so there is no page to ask for; the envelope is kept so the response stays an object.\n\n`404 NOT_FOUND` when the venue does not exist — deliberately not an empty list, so a mistyped id does not read as a seeding problem. A real venue with no layouts *does* return `[]`, and a layout with no sections comes back with `capacity: 0`, because that is exactly the state that makes a later publish fail with `empty_seat_map`.\n\nThe test script stores the first non-empty layout in `{{seatMapId}}` and its first section in `{{sectionId}}`, and logs every section — **price all of them** or publish refuses with `Unpriced: <name>`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Catalog · Events",
+      "description": "Reading and creating events. `EventsController`, routed at `events`.",
+      "item": [
+        {
+          "name": "List events",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.items && body.items[0];",
+                  "if (first) {",
+                  "  pm.collectionVariables.set('eventId', first.id);",
+                  "  pm.collectionVariables.set('eventSlug', first.slug);",
+                  "  console.log('Captured event', first.slug, first.id, first.status);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events?page=1&pageSize=12&sort=date_asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "int ≥ 1. Default 1."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "12",
+                  "description": "int 1–48. Default 12."
+                },
+                {
+                  "key": "sort",
+                  "value": "date_asc",
+                  "description": "date_asc | date_desc | price_asc | title_asc. Default date_asc."
+                },
+                {
+                  "key": "q",
+                  "value": "rock",
+                  "description": "Free text over title and venue name (1–120 chars).",
+                  "disabled": true
+                },
+                {
+                  "key": "city",
+                  "value": "São Paulo",
+                  "description": "1–80 chars.",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "music",
+                  "description": "music | sports | theatre | conference | comedy | festival. An unknown value is a 400, not an ignored filter.",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01T00:00:00.000Z",
+                  "description": "ISO datetime. Inclusive lower bound on startsAt.",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31T23:59:59.000Z",
+                  "description": "ISO datetime. Inclusive upper bound on startsAt.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "`GET /api/v1/events` → `200 { items: EventSummary[], meta: { page, pageSize, total, pageCount } }`.\n\nOnly `published` and `on_sale` events are visible here (`PUBLIC_EVENT_STATUSES`); a `draft` you just created will **not** appear.\n\nThe test script stores the first result in `{{eventId}}` / `{{eventSlug}}`."
+          },
+          "response": []
+        },
+        {
+          "name": "Get event by slug",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventSlug}}"
+              ]
+            },
+            "description": "`GET /api/v1/events/:slug` → `200 EventDetail`.\n\nBy **slug**, not id: reads address the public human-facing handle. Transitions (below) address the id instead, so publishing does not break when marketing rewrites the slug.\n\n`EventDetail` = `EventSummary` + `description`, `doorsOpenAt`, `priceTiers[]`."
+          },
+          "response": []
+        },
+        {
+          "name": "Create event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('eventId', body.id);",
+                  "  pm.collectionVariables.set('eventSlug', body.slug);",
+                  "  console.log('Created draft', body.slug, body.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"slug\": \"midnight-echoes-live\",\n  \"title\": \"Midnight Echoes Live\",\n  \"description\": \"A one-night-only set.\",\n  \"category\": \"music\",\n  \"startsAt\": \"2026-11-20T23:00:00.000Z\",\n  \"endsAt\": \"2026-11-21T02:00:00.000Z\",\n  \"doorsOpenAt\": \"2026-11-20T21:30:00.000Z\",\n  \"heroImageUrl\": null,\n  \"venueId\": \"{{venueId}}\",\n  \"organizerId\": \"{{organizerId}}\",\n  \"seatMapId\": \"{{seatMapId}}\",\n  \"priceTiers\": [\n    {\n      \"name\": \"Floor\",\n      \"price\": { \"amountMinor\": 25000, \"currency\": \"BRL\" },\n      \"sectionIds\": [\"{{sectionId}}\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events"
+              ]
+            },
+            "description": "`POST /api/v1/events` → `201 EventDetail`.\n\nAlways produces a **draft** — the body has no `status` field on purpose; moving to `published`/`on_sale` is a transition with its own rules.\n\nBody rules enforced by `createEventSchema`:\n- `slug` lowercase-hyphenated, ≤180 chars\n- `endsAt` ≥ `startsAt`; `doorsOpenAt` ≤ `startsAt`\n- 1–20 `priceTiers`, unique names, **one shared currency**\n- a section may be priced by at most one tier\n- `seatMapId` must belong to `venueId` (checked server-side)\n\nGetting the ids: run **Catalog · Venues → List venues**, then **List a venue's seat maps**. Those fill `{{venueId}}`, `{{seatMapId}}` and `{{sectionId}}` for you.\n\n`{{organizerId}}` has no endpoint yet and still comes from the seed (`SELECT id FROM organizers LIMIT 1;`).\n\nThe body below prices **one** section. A layout usually has several, and publish refuses until every one is priced — the seat-maps response lists them all, so add a tier per section."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Catalog · Event lifecycle",
+      "description": "State transitions and the hero image sub-resource. Each is a verb on its own route rather than a PATCH carrying a field — publishing settles capacity and hands it to Inventory, going on sale settles timing.",
+      "item": [
+        {
+          "name": "Publish event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventId}}",
+                "publish"
+              ]
+            },
+            "description": "`POST /api/v1/events/:id/publish` → `200 EventDetail` (draft → published).\n\n**200, not 201** — it creates nothing; the event comes back so the caller can see the status it landed in.\n\nGuards: a seat map, real capacity, every section priced. Per ADR-0006 this also makes Inventory snapshot the layout into allocations, so it is the step that has to happen before availability returns anything."
+          },
+          "response": []
+        },
+        {
+          "name": "Open sales",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventId}}/on-sale",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventId}}",
+                "on-sale"
+              ]
+            },
+            "description": "`POST /api/v1/events/:id/on-sale` → `200 EventDetail` (published → on_sale).\n\nOnly an `on_sale` event accepts holds — anything else refuses with `409 EVENT_NOT_ON_SALE`."
+          },
+          "response": []
+        },
+        {
+          "name": "Replace hero image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "The field name is fixed by HERO_IMAGE_FIELD. JPEG or PNG, ≤ 5 MiB, exactly one file."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventId}}/hero-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventId}}",
+                "hero-image"
+              ]
+            },
+            "description": "`POST /api/v1/events/:id/hero-image` → `200 EventDetail`.\n\n`multipart/form-data`, file in the **`file`** field. Pick a local file in the Body tab — Postman sets the boundary itself, so do not add a `Content-Type` header by hand.\n\nAccepted: `image/jpeg`, `image/png` (`.jpg`/`.jpeg`/`.png`), max 5 MiB, `files: 1`.\n\nFilename and Content-Type are client claims — the server also inspects the bytes, so a mislabelled file is a 400. Over the size cap you get `413 PAYLOAD_TOO_LARGE`.\n\nOmitting the field entirely is a `400` malformed request, not a rejected image.\n\nThe returned `heroImageUrl` points at `/uploads/...` (see the last folder)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inventory · Availability & holds",
+      "description": "`HoldsController`, routed at `events/:eventId` — a claim is meaningless without the event it is against, so these are nested rather than top-level `/holds`.\n\nRequires the event to have been published (allocations exist) and, for holds, to be `on_sale`.",
+      "item": [
+        {
+          "name": "List availability",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const sellable = (body.items || []).find((i) => i.available > 0);",
+                  "if (sellable) {",
+                  "  pm.collectionVariables.set('allocationId', sellable.id);",
+                  "  console.log('Captured allocation', sellable.id, 'available', sellable.available);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventId}}/availability?page=1&pageSize=48&onlyAvailable=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventId}}",
+                "availability"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "int ≥ 1. Default 1."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "48",
+                  "description": "int 1–48. Default 12."
+                },
+                {
+                  "key": "onlyAvailable",
+                  "value": "true",
+                  "description": "Boolean-ish string. Default false. Hides rows with nothing left."
+                }
+              ]
+            },
+            "description": "`GET /api/v1/events/:eventId/availability` → `200 { items: AllocationAvailability[], meta }`.\n\nThe path takes an **event id (UUID)**, not a slug.\n\nEach item: `{ id, kind: 'seated' | 'general_admission', sectionName, rowLabel, seatLabel, capacity, available }`. `id` is Inventory's allocation id — the id a hold names, and the only way a client learns one until seat maps are rendered.\n\n`available` is `capacity - held - reserved` **at the instant of the read** and is stale on arrival by design; a hold re-decides under a lock rather than trusting what a client was shown.\n\nThe test script stores the first sellable allocation in `{{allocationId}}`."
+          },
+          "response": []
+        },
+        {
+          "name": "Place hold",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('holderId', body.holderId);",
+                  "  console.log('Hold', body.id, 'expires', body.expiresAt);",
+                  "} else {",
+                  "  console.log('Refused:', pm.response.code, pm.response.json().code);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"lines\": [\n    {\n      \"allocationId\": \"{{allocationId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            },
+            "description": "`POST /api/v1/events/:eventId/holds` → `201 Hold`.\n\nBody: `{ holderId?: uuid, lines: [{ allocationId: uuid, quantity?: int 1–10 }] }`, 1–20 lines. Omit `holderId` and the server mints an anonymous one — identity is Slice 4. The event id comes from the **path only**; putting it in the body too would be two places to disagree.\n\nA seat is always `quantity: 1` (its capacity makes anything else impossible); a general-admission counter takes N in one line.\n\nFailure modes — the whole point of the endpoint is telling them apart:\n\n| Status | code | Means |\n| --- | --- | --- |\n| 400 | `VALIDATION_FAILED` | Malformed body, or a repeated line |\n| 404 | `NOT_FOUND` | No such event, or not its allocations |\n| 409 | `EVENT_NOT_ON_SALE` | Right request, closed doors |\n| 409 | `ALLOCATION_UNAVAILABLE` | **Someone else got there first** |\n\nResponse `expiresAt` is *recorded, not yet enforced* — nothing sweeps expired holds today.\n\nTo reproduce the race, run this request with the Collection Runner at high iteration count against a one-seat allocation and count `201`s vs `409 ALLOCATION_UNAVAILABLE`."
+          },
+          "response": []
+        },
+        {
+          "name": "Place hold · general admission (multi-unit)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"holderId\": \"{{holderId}}\",\n  \"lines\": [\n    {\n      \"allocationId\": \"{{allocationId}}\",\n      \"quantity\": 4\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{apiPrefix}}/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            },
+            "description": "Same endpoint, exercising a `general_admission` allocation with `quantity > 1` and an explicit `holderId` — a stable claimant id, so the winner of a race can be named afterwards.\n\n`quantity` caps at `HOLD_MAX_QUANTITY = 10` per line; `HOLD_MAX_LINES = 20` per request. Those are ceilings that keep one request from holding the lock over a whole stadium — not the real per-order limit, which is Ordering's business and does not exist yet."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Static assets",
+      "description": "Uploaded hero images, served straight off disk by `express.static` — the local-first stopgap ADR-0005 allows.",
+      "item": [
+        {
+          "name": "Fetch uploaded hero image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/{{uploadFilename}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "uploads",
+                "{{uploadFilename}}"
+              ]
+            },
+            "description": "`GET /uploads/:filename`.\n\nOutside the `api/v1` prefix: a stored `heroImageUrl` is dereferenced for as long as the row lives and should not stop resolving the day the API becomes v2.\n\nFilenames carry a UUID and are never reused, so responses are `immutable, max-age=30d`. A miss is a plain `404` (`fallthrough: false`), not Nest's \"Cannot GET\".\n\nServed with `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'` — these are attacker-supplied bytes on our origin.\n\nSet `{{uploadFilename}}` to the basename from a `heroImageUrl`. In S3 mode the URL points at the bucket instead and this request does not apply."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

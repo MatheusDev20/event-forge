@@ -18,6 +18,67 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  apps/console:
+    dependencies:
+      '@repo/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@repo/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.101.4
+        version: 5.101.4(react@19.2.8)
+      next:
+        specifier: 16.3.0
+        version: 16.3.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@26.2.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@repo/tailwind-config':
+        specifier: workspace:*
+        version: link:../../packages/config-tailwind
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@tailwindcss/postcss':
+        specifier: ^4.3.3
+        version: 4.3.3
+      '@tanstack/eslint-plugin-query':
+        specifier: ^5.101.4
+        version: 5.101.4(eslint@10.8.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      '@types/node':
+        specifier: ^26.2.0
+        version: 26.2.0
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.2.4
+        version: 19.2.4(@types/react@19.2.18)
+      eslint:
+        specifier: ^10.8.1
+        version: 10.8.1(jiti@2.7.0)(supports-color@8.1.1)
+      postcss:
+        specifier: ^8.5.26
+        version: 8.5.26
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   apps/server:
     dependencies:
       '@aws-sdk/client-s3':

@@ -1,0 +1,13 @@
+/*
+ * The design system is the only styling entry point: @repo/ui/styles.css pulls
+ * in the token layers and registers the package's own source files for class
+ * scanning, so this app never imports Tailwind or the tokens directly.
+ *
+ * The console shares those tokens with the storefront rather than defining a
+ * palette of its own. An organizer who publishes here and checks the result on
+ * the public site should be looking at the same blue — see
+ * docs/adr/0004-design-system-tokens.md.
+ */
+@import '@repo/ui/styles.css';
+
+@source '../';

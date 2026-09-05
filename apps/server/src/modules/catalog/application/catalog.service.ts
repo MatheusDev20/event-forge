@@ -11,16 +11,27 @@ import type { EventStatus } from '../domain/event';
 import { acceptHeroImage } from '../domain/hero-image';
 import type { HeroImageRejection, HeroImageUpload } from '../domain/hero-image';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
+import type { ListVenuesCriteria } from '../domain/list-venues-criteria';
 import type { NewEvent } from '../domain/new-event';
 import { onSaleBlocker, publishBlocker } from '../domain/publish-event';
 import type { OnSaleBlocker, PublishBlocker } from '../domain/publish-event';
-import type { SeatMapLayout } from '../domain/seat-map';
+import type { SeatMapLayout, VenueSeatMap } from '../domain/seat-map';
 import type { EventEntity } from '../infrastructure/entities/event.entity';
+import type { VenueEntity } from '../infrastructure/entities/venue.entity';
 import { EventsRepository } from '../infrastructure/events.repository';
 import { HeroImageStorage } from '../infrastructure/hero-image.storage';
+import { VenuesRepository } from '../infrastructure/venues.repository';
 
 export type EventPage = {
   items: EventEntity[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+export type VenuePage = {
+  items: VenueEntity[];
   total: number;
   page: number;
   pageSize: number;
@@ -40,6 +51,7 @@ export class CatalogService {
     private readonly events: EventsRepository,
     private readonly heroImages: HeroImageStorage,
     private readonly bus: DomainEventBus,
+    private readonly venues: VenuesRepository,
   ) {}
 
   async listPublicEvents(criteria: ListEventsCriteria): Promise<EventPage> {
@@ -301,6 +313,45 @@ export class CatalogService {
     }
 
     return event;
+  }
+
+  /**
+   * The rooms, paginated.
+   *
+   * Read-only and unfiltered by any notion of visibility, unlike
+   * `listPublicEvents`: a venue has no status to hide behind and nothing about
+   * a building is an organizer's secret. What makes this endpoint worth having
+   * is that `createEvent` demands a `venueId` and, until now, refused to say
+   * where one comes from.
+   */
+  async listVenues(criteria: ListVenuesCriteria): Promise<VenuePage> {
+    const { items, total } = await this.venues.list(criteria);
+
+    return {
+      items,
+      total,
+      page: criteria.page,
+      pageSize: criteria.pageSize,
+      pageCount: Math.ceil(total / criteria.pageSize),
+    };
+  }
+
+  /**
+   * One venue's layouts, with the sections a price tier can name.
+   *
+   * The existence check is not redundant with an empty result. A venue that is
+   * not there and a venue that has no layouts are different answers to
+   * different questions, and collapsing them into `[]` would send whoever
+   * mistyped an id hunting for a seeding problem. Nothing is racing here — a
+   * venue deleted between the two queries yields an empty list, which is what
+   * it would have yielded a moment later anyway.
+   */
+  async getVenueSeatMaps(venueId: string): Promise<VenueSeatMap[]> {
+    if (!(await this.venues.exists(venueId))) {
+      throw new NotFoundException(`No venue with id "${venueId}"`);
+    }
+
+    return this.venues.findSeatMaps(venueId);
   }
 
   async getPublicEventBySlug(slug: string): Promise<EventEntity> {
