@@ -28,11 +28,13 @@
     "db:migrate:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "db:migrate:generate": "bash scripts/migration.sh generate",
     "db:seed": "ts-node -r tsconfig-paths/register src/database/seed/seed.ts",
+    "db:seed:simple": "ts-node -r tsconfig-paths/register src/database/seed/seed-simple.ts",
     "type-check": "tsc --noEmit",
     "db:migrate:show": "typeorm-ts-node-commonjs migration:show -d src/database/data-source.ts",
     "db:migrate:create": "bash scripts/migration.sh create",
     "db:migrate:check": "bash scripts/check-schema-drift.sh",
-    "db:fresh": "pnpm run db:reset && pnpm run db:migrate && pnpm run db:seed"
+    "db:fresh": "pnpm run db:reset && pnpm run db:migrate && pnpm run db:seed",
+    "db:fresh:simple": "pnpm run db:reset && pnpm run db:migrate && pnpm run db:seed:simple"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1120.0",
