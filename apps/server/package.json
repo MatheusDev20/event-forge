@@ -34,7 +34,8 @@
     "db:migrate:create": "bash scripts/migration.sh create",
     "db:migrate:check": "bash scripts/check-schema-drift.sh",
     "db:fresh": "pnpm run db:reset && pnpm run db:migrate && pnpm run db:seed",
-    "db:fresh:simple": "pnpm run db:reset && pnpm run db:migrate && pnpm run db:seed:simple"
+    "db:fresh:simple": "pnpm run db:reset && pnpm run db:migrate && pnpm run db:seed:simple",
+    "experiment:one-seat": "node scripts/one-seat-experiment.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1120.0",

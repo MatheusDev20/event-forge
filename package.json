@@ -23,7 +23,8 @@
     "db:migrate:create": "pnpm --filter @repo/server run db:migrate:create",
     "db:migrate:check": "pnpm --filter @repo/server run db:migrate:check",
     "db:fresh": "pnpm --filter @repo/server run db:fresh",
-    "db:fresh:simple": "pnpm --filter @repo/server run db:fresh:simple"
+    "db:fresh:simple": "pnpm --filter @repo/server run db:fresh:simple",
+    "experiment:one-seat": "pnpm --filter @repo/server run experiment:one-seat"
   },
   "devDependencies": {
     "prettier": "^3.9.6",
