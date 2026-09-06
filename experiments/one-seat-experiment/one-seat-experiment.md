@@ -66,11 +66,3 @@ assertions make it visible.
    as a loss and would hide a broken lock.
 4. **The rate limiter counts too.** `ThrottlerGuard` at 60/minute turns the
    losers into `429`s — a guard doing its job, read as a lock doing its job.
-
-## Next
-
-Comparison. One strategy is a baseline, not a finding — pessimistic against
-optimistic (version column) against an advisory-lock variant, same harness,
-one graph. See [`docs/roadmap.md`](../docs/roadmap.md).
-
-Details: [ADR-0007](../docs/adr/0007-pessimistic-locking-baseline.md).
