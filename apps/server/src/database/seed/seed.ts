@@ -35,13 +35,14 @@ const VENUES = [
   { name: 'Mineirão', city: 'Belo Horizonte', country: 'BR' },
   { name: 'Pedreira Paulo Leminski', city: 'Curitiba', country: 'BR' },
   { name: 'Concha Acústica', city: 'Salvador', country: 'BR' },
+  { name: 'Teatro Amazonas', city: 'Manaus', country: 'BR' },
 ];
 
 /**
  * One layout per venue, index-aligned with VENUES above.
  *
- * The mix is the point: a fully seated theatre, two mixed rooms, and stadiums
- * that sell nothing but counters. Slice 3 measures seated contention against
+ * The mix is the point: seated houses, mixed rooms, and stadiums that sell
+ * nothing but counters. Slice 3 measures seated contention against
  * general-admission contention — thousands of rows versus one hot one — and it
  * needs both shapes in the same database to do it.
  *
@@ -120,6 +121,15 @@ const LAYOUTS: LayoutSeed[] = [
   {
     name: 'Anfiteatro',
     sections: [seated('Arquibancada', 12, 24), ga('Área Plana', 2000)],
+  },
+  {
+    name: 'Casa de Ópera',
+    sections: [
+      seated('Plateia', 14, 22),
+      seated('Balcão Nobre', 8, 18),
+      seated('Frisas', 4, 10),
+      ga('Galeria', 120),
+    ],
   },
 ];
 
