@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+/* Both families are loaded in app/layout.tsx via next/font (self-hosted). */
+@theme inline {
+  --font-mono:
+    var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-ibm-plex-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
 /*
  * Deliberately plain for now — this is a scaffold, the design comes later.
  * `.prose` is the minimum needed to make a rendered write-up readable.

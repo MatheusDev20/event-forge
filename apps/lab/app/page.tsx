@@ -1,46 +1,40 @@
-import Link from 'next/link';
 import { getExperiments } from '@/lib/experiments';
-import { StatusBadge } from './components/status-badge';
+import { NotesFilter, type NoteSummary } from './components/notes-filter';
 
 export default function HomePage() {
-  const experiments = getExperiments();
+  /*
+   * Everything the site reads today comes out of the monorepo's `experiments/`
+   * folder, so it all files under EventForge. `kind` exists so a second source
+   * of write-ups can land under Programming without touching the filter.
+   */
+  const notes: NoteSummary[] = getExperiments().map((experiment) => ({
+    slug: experiment.slug,
+    title: experiment.title,
+    question: experiment.question,
+    status: experiment.status,
+    kind: 'eventforge',
+  }));
 
   return (
-    <>
-      <section className="mb-12">
-        <h1 className="text-2xl font-semibold">Experiments</h1>
-        <p className="mt-3 text-neutral-600">
-          Event Forge is a ticketing platform I built to have something real to
-          break. Each experiment here asks one question about how it behaves
-          under load — contention, races, migrations — and answers it with a test
-          rather than an opinion.
+    <section>
+      {/* `font-sans` resolves to IBM Plex Sans — see the theme block in
+          app/styles/global.css. Everything outside this block stays mono. */}
+      <div className="font-sans">
+        <h1 className="max-w-2xl text-xl leading-relaxed text-[rgb(20,22,26)]">
+          This is where I put the stuff I write.
+        </h1>
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[rgb(107,112,118)]">
+          You can browse it with the filter below, though most of the time a
+          link will drop you straight into a single article.
         </p>
-      </section>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[rgb(107,112,118)]">
+          The texts cover different subjects, and their only real purpose is to
+          help me get a proper grasp of whatever I am studying, reading or
+          curious about. Hopefully some of it is useful to you as well. Or not.
+        </p>
+      </div>
 
-      {experiments.length === 0 ? (
-        <p className="text-neutral-500">No experiments published yet.</p>
-      ) : (
-        <ul className="space-y-6">
-          {experiments.map((experiment) => (
-            <li key={experiment.slug}>
-              <div className="flex items-center gap-3">
-                <Link
-                  href={`/experiments/${experiment.slug}`}
-                  className="font-medium underline underline-offset-4"
-                >
-                  {experiment.title}
-                </Link>
-                <StatusBadge status={experiment.status} />
-              </div>
-              {experiment.question && (
-                <p className="mt-1 text-sm text-neutral-600">
-                  {experiment.question}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+      <NotesFilter notes={notes} />
+    </section>
   );
 }
