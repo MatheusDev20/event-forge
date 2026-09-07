@@ -1,18 +1,16 @@
-import { getExperiments } from '@/lib/experiments';
+import { getArticles, getCategories } from '@/lib/articles';
 import { NotesFilter, type NoteSummary } from './components/notes-filter';
 
 export default function HomePage() {
   /*
-   * Everything the site reads today comes out of the monorepo's `experiments/`
-   * folder, so it all files under EventForge. `kind` exists so a second source
-   * of write-ups can land under Programming without touching the filter.
+   * Both the list and the filter come out of `articles/`: one chip per folder
+   * in there, so a new category is a new folder and nothing else.
    */
-  const notes: NoteSummary[] = getExperiments().map((experiment) => ({
-    slug: experiment.slug,
-    title: experiment.title,
-    question: experiment.question,
-    status: experiment.status,
-    kind: 'eventforge',
+  const notes: NoteSummary[] = getArticles().map((article) => ({
+    category: article.category,
+    slug: article.slug,
+    title: article.title,
+    question: article.question,
   }));
 
   return (
@@ -34,7 +32,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      <NotesFilter notes={notes} />
+      <NotesFilter notes={notes} categories={getCategories()} />
     </section>
   );
 }

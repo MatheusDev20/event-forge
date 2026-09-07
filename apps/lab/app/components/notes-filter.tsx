@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import type { ExperimentStatus } from '@/lib/experiments';
-import { StatusBadge } from './status-badge';
+import type { Category } from '@/lib/articles';
 
 /*
  * The filter is client state rather than a `?filter=` search param on purpose:
@@ -11,41 +10,43 @@ import { StatusBadge } from './status-badge';
  * and the whole list is known at build time. Only the fields the list renders
  * are passed in — the write-up bodies stay on the server.
  */
-export type NoteKind = 'eventforge' | 'programming';
-
 export type NoteSummary = {
+  category: string;
   slug: string;
   title: string;
   question: string | null;
-  status: ExperimentStatus;
-  kind: NoteKind;
 };
 
-const filters = [
-  { id: 'all', label: 'all' },
-  { id: 'eventforge', label: 'event forge lab' },
-  { id: 'programming', label: 'programming' },
-] as const;
+/* The category a `what is this` link hangs off. It is the only one with a
+ * story that needs telling; the rest are self-explanatory. */
+const EVENT_FORGE = 'event-forge';
 
-type FilterId = (typeof filters)[number]['id'];
-
-export function NotesFilter({ notes }: { notes: NoteSummary[] }) {
-  const [active, setActive] = useState<FilterId>('all');
+export function NotesFilter({
+  notes,
+  categories,
+}: {
+  notes: NoteSummary[];
+  categories: Category[];
+}) {
+  const [active, setActive] = useState<string>('all');
   const about = useRef<HTMLDialogElement>(null);
   const shown =
-    active === 'all' ? notes : notes.filter((note) => note.kind === active);
+    active === 'all' ? notes : notes.filter((note) => note.category === active);
+
+  /* `all` is not a folder, so it is prepended rather than read from disk. */
+  const filters = [{ slug: 'all', label: 'all' }, ...categories];
 
   return (
     <>
       <div className="mt-7 flex flex-wrap gap-2">
         {filters.map((filter) => {
-          const isActive = filter.id === active;
+          const isActive = filter.slug === active;
           return (
             <button
-              key={filter.id}
+              key={filter.slug}
               type="button"
               aria-pressed={isActive}
-              onClick={() => setActive(filter.id)}
+              onClick={() => setActive(filter.slug)}
               className={`cursor-pointer rounded-[2px] border px-2 py-1 text-[11px] tracking-[0.06em] uppercase transition-colors ${
                 isActive
                   ? 'border-[rgb(20,22,26)] bg-[rgb(20,22,26)] text-[rgb(251,251,249)]'
@@ -58,7 +59,7 @@ export function NotesFilter({ notes }: { notes: NoteSummary[] }) {
         })}
       </div>
 
-      {active === 'eventforge' && (
+      {active === EVENT_FORGE && (
         <button
           type="button"
           onClick={() => about.current?.showModal()}
@@ -116,16 +117,13 @@ export function NotesFilter({ notes }: { notes: NoteSummary[] }) {
       ) : (
         <ul className="mt-10 space-y-6">
           {shown.map((note) => (
-            <li key={note.slug}>
-              <div className="flex items-center gap-3">
-                <Link
-                  href={`/experiments/${note.slug}`}
-                  className="font-medium underline underline-offset-4"
-                >
-                  {note.title}
-                </Link>
-                <StatusBadge status={note.status} />
-              </div>
+            <li key={`${note.category}/${note.slug}`}>
+              <Link
+                href={`/articles/${note.category}/${note.slug}`}
+                className="font-medium underline underline-offset-4"
+              >
+                {note.title}
+              </Link>
               {note.question && (
                 <p className="mt-1 text-sm text-neutral-600">{note.question}</p>
               )}

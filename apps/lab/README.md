@@ -6,32 +6,36 @@ The public website for the [Event Forge](../../README.md) experiments.
 
 Event Forge itself stays private; this site does not. So `apps/lab` deliberately
 depends on **no `@repo/*` workspace package** — it carries its own TypeScript,
-ESLint and Tailwind setup. Moving it into its own public repository is a matter
-of copying the folder and the `experiments/` content, not untangling shared
-config.
+ESLint and Tailwind setup. The write-ups live in `articles/` inside the app for
+the same reason, so moving it into its own public repository is a matter of
+copying this one folder, not untangling shared config and content.
 
 ## Content
 
-Pages are generated at build time from the markdown in `experiments/`, one
-folder per experiment:
+Pages are generated at build time from the markdown in [`articles/`](articles/),
+which lives inside this app — there is no second copy anywhere else. One folder
+per category, one folder per article:
 
 ```
-experiments/
-  one-seat-experiment/
-    one-seat-experiment.md   # the main write-up  -> /experiments/one-seat-experiment
-    takeaways.md             # an extra document  -> /experiments/one-seat-experiment/takeaways
+articles/
+  event-forge/                   # a category -> the "Event Forge" filter
+    one-seat-experiment/         # -> /articles/event-forge/one-seat-experiment
+      one-seat-experiment.md     #    the main write-up
+      takeaways.md               #    a sub-page
+  programming/                   # a category -> the "Programming" filter
 ```
 
-The main write-up is `<folder>.md`, or `index.md`, or the only file present.
-Every other `.md` in the folder becomes a linked sub-page.
+The category folders are what the home page filter is built from, so adding a
+chip means adding a folder. The main write-up in an article folder is
+`<folder>.md`, or `index.md`, or the only file present; every other `.md`
+becomes a linked sub-page.
 
-Title, question and status are read from the markdown itself — the first `#`
-heading, the opening `>` blockquote and a `Status: **green**` line — so the
-existing write-ups need no changes. Optional YAML front matter (`title`,
-`question`, `status`) overrides any of them.
+Title and question are read from the markdown itself — the first `#` heading
+and the opening `>` blockquote — so the existing write-ups need no changes.
+Optional YAML front matter (`title`, `question`) overrides either of them.
 
-`EXPERIMENTS_DIR` points the loader at that folder; it defaults to
-`../../experiments`. Set it when the app lives somewhere else.
+`ARTICLES_DIR` points the loader at that folder; it defaults to `./articles`.
+Set it only if the content ever moves out of the app.
 
 ## Commands
 
