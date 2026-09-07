@@ -37,6 +37,7 @@ const sqlList = (values: readonly string[]): string =>
 @Index('idx_events_venue_id', ['venueId'])
 @Index('idx_events_organizer_id', ['organizerId'])
 @Index('idx_events_seat_map_id', ['seatMapId'])
+@Index('idx_events_featured_starts_at', ['featured', 'startsAt'])
 @Check('events_status_check', `"status" IN (${sqlList(EVENT_STATUSES)})`)
 @Check('events_category_check', `"category" IN (${sqlList(EVENT_CATEGORIES)})`)
 @Check(
@@ -73,6 +74,24 @@ export class EventEntity {
 
   @Column({ type: 'text', name: 'hero_image_url', nullable: true })
   heroImageUrl: string | null;
+
+  /**
+   * Whether the storefront highlights this event — the home page banner, and a
+   * marker on its card anywhere else it is listed.
+   *
+   * Editorial, not lifecycle. `status` says what an event is and moves one way
+   * through a fixed set of transitions; this says what someone chose to point
+   * at, flips back and forth, and has no rule guarding it. That is why it is a
+   * boolean here rather than a sixth status: an event should not have to stop
+   * being featured in order to go on sale.
+   *
+   * NOT NULL with a `false` default, so the question has an answer for every
+   * row that already exists and for every one written by code that has never
+   * heard of this column — including the seed, which highlights nothing and
+   * leaves the choosing to whoever is running it.
+   */
+  @Column({ type: 'boolean', default: false })
+  featured: boolean;
 
   @Column({ type: 'uuid', name: 'venue_id' })
   venueId: string;

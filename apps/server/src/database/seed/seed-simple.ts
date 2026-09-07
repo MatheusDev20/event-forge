@@ -185,6 +185,9 @@ async function seedSimple(): Promise<void> {
       endsAt: daysFromNow(DAYS_OUT, 23, 30),
       doorsOpenAt: daysFromNow(DAYS_OUT, 19, 30),
       heroImageUrl: null,
+      // Not highlighted, like the full seed: what the storefront points at is
+      // yours to choose, with `PUT /events/:id/featured {"featured": true}`.
+      featured: false,
       venueId: ID.venue,
       organizerId: ID.organizer,
       seatMapId: ID.seatMap,

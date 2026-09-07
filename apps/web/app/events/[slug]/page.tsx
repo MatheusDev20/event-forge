@@ -9,6 +9,7 @@ import { ApiRequestError } from '../../lib/api/client';
 import {
   CATEGORY_ART_TINT,
   STATUS_LABEL,
+  formatPrice,
   heroImageUrl,
   isBuyable,
 } from '../../lib/event-display';
@@ -16,7 +17,6 @@ import {
   formatEventDate,
   formatEventDateTime,
   formatEventTime,
-  formatMoney,
 } from '../../lib/format';
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -103,7 +103,7 @@ export default async function EventDetailPage({ params }: PageProps) {
               >
                 <span className="text-text-muted text-sm">{tier.name}</span>
                 <span className="text-text text-sm font-semibold">
-                  {formatMoney(tier.price)}
+                  {formatPrice(tier.price)}
                 </span>
               </li>
             ))}

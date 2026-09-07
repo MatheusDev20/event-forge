@@ -400,6 +400,31 @@ export class EventsRepository {
     return result.affected === 1;
   }
 
+  /**
+   * Highlights the event on the storefront, or stops. False when there is no
+   * such event.
+   *
+   * Not a `transitionStatus`-shaped conditional UPDATE, and deliberately so:
+   * those exist because publishing must happen exactly once under concurrency,
+   * and the `WHERE status = :from` clause is what decides which caller won.
+   * Nothing here is a race worth arbitrating — two requests setting the same
+   * flag both want the same end state, and last-write-wins is the correct
+   * answer rather than a tolerated one.
+   *
+   * `updated_at` is set explicitly for the same reason the transitions do it:
+   * the column is a plain default, not an @UpdateDateColumn.
+   */
+  async setFeatured(id: string, featured: boolean): Promise<boolean> {
+    const result = await this.events
+      .createQueryBuilder()
+      .update(EventEntity)
+      .set({ featured, updatedAt: () => 'now()' })
+      .where('id = :id', { id })
+      .execute();
+
+    return result.affected === 1;
+  }
+
   private async findPublishSections(
     eventId: string,
     seatMapId: string,
@@ -475,6 +500,15 @@ export class EventsRepository {
     if (criteria.startsUntil) {
       qb.andWhere('event.startsAt <= :startsUntil', {
         startsUntil: criteria.startsUntil,
+      });
+    }
+
+    // `!== undefined` rather than a truthiness check: `featured: false` is a
+    // filter someone can ask for — everything the storefront is not currently
+    // pointing at — and truthiness would silently drop it.
+    if (criteria.featured !== undefined) {
+      qb.andWhere('event.featured = :featured', {
+        featured: criteria.featured,
       });
     }
 

@@ -21,6 +21,11 @@ import dataSource from '../data-source';
  * twice leaves the same database rather than a doubled one. Dates are relative
  * to the run, so the "upcoming events" list is never stale.
  *
+ * Nothing here is featured either — `featured` is false on all 23. Which
+ * events the storefront leads with is an editorial decision, and a seed that
+ * made it for you would be one you had to undo before you could make your own.
+ * `printNextSteps` shows the call that sets it.
+ *
  * Nothing here is published. Every sellable event is seeded as a `draft`,
  * because publishing is a transition, not a column value: `publishEvent`
  * emits `EventPublished`, `SnapshotOnPublish` catches it, and only then does
@@ -685,6 +690,12 @@ async function seed(): Promise<void> {
         endsAt: daysFromNow(seed.inDays, 23),
         doorsOpenAt: daysFromNow(seed.inDays, 19),
         heroImageUrl: null,
+        // Nothing is highlighted, for the same reason nothing is published:
+        // which events the front page points at is an editorial decision, and
+        // a seed that made it for you would be one you had to undo before you
+        // could make your own. Pick yours with
+        // `PUT /events/:id/featured {"featured": true}`.
+        featured: false,
         venueId: venues[seed.venue].id,
         organizerId: organizers[seed.organizer].id,
         seatMapId: seatMaps[seed.venue].id,
@@ -803,9 +814,21 @@ into allocations, so until you do, "allocations" is empty and that is correct.
   # And see what you can now sell
   curl -s '${api}/events/${cheap.id}/availability' | jq '.items'
 
+Nothing is highlighted either. The storefront's home page banner shows the
+featured events, and falls back to whatever is soonest while none are — so
+pick the ones you want it to lead with:
+
+  # Put an event on the front page (works on a draft too; it shows once public)
+  curl -s -X PUT ${api}/events/${cheap.id}/featured \\
+    -H 'content-type: application/json' -d '{"featured": true}' | jq '.featured'
+
+  # And take it back off
+  curl -s -X PUT ${api}/events/${cheap.id}/featured \\
+    -H 'content-type: application/json' -d '{"featured": false}' | jq '.featured'
+
 Ids change on every re-seed. To list them all:
   docker exec event-forge-postgres-1 psql -U postgres -d event_forge_db \\
-    -c "select id, status, title from events order by status, title;"`);
+    -c "select id, status, featured, title from events order by status, title;"`);
 }
 
 seed().catch((error: unknown) => {

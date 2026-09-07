@@ -78,6 +78,20 @@ export const eventSummarySchema = z.object({
   /** Cheapest tier, for the "from R$ x" line. Null when no tiers are priced. */
   priceFrom: moneySchema.nullable(),
   heroImageUrl: z.url().nullable(),
+  /**
+   * Editorial highlight: the storefront gives these a place of their own —
+   * the home page banner, and a marker wherever else they appear in a list.
+   *
+   * Deliberately not a status. The lifecycle says what an event *is*, and an
+   * event does not become more published by being on the front page; this says
+   * what someone decided to point at this week, and it flips back and forth
+   * with no rules attached. Folding it into `eventStatusSchema` would have
+   * made "featured" a state an event has to leave to go on sale.
+   *
+   * On the summary rather than only the detail because the listing is where it
+   * is read: a card cannot mark itself without it.
+   */
+  featured: z.boolean(),
 });
 
 export const eventDetailSchema = eventSummarySchema.extend({
@@ -93,6 +107,21 @@ export const eventSortSchema = z.enum([
   'title_asc',
 ]);
 
+/**
+ * A boolean as a URL can carry it.
+ *
+ * Not `z.coerce.boolean()`, which is JavaScript truthiness: under it
+ * `?featured=false` parses as `true`, so the one filter someone would reach
+ * for to see what is *not* highlighted would answer with the opposite. Listing
+ * the two spellings a query string actually contains is the only honest
+ * coercion. The union keeps a real boolean working too, for the server-side
+ * callers that build a query in code rather than parse one off a URL.
+ */
+const queryBooleanSchema = z.union([
+  z.boolean(),
+  z.enum(['true', 'false']).transform((value) => value === 'true'),
+]);
+
 export const listEventsQuerySchema = paginationQuerySchema.extend({
   /** Free-text match against title and venue name. */
   q: z.string().trim().min(1).max(120).optional(),
@@ -101,6 +130,11 @@ export const listEventsQuerySchema = paginationQuerySchema.extend({
   /** Inclusive lower/upper bounds on the event start. */
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
+  /**
+   * Narrows to highlighted events, or to the rest with `false`. Omitted means
+   * both — a filter, not a sort, so the ordering stays whatever `sort` says.
+   */
+  featured: queryBooleanSchema.optional(),
   sort: eventSortSchema.default('date_asc'),
 });
 
@@ -218,3 +252,22 @@ export const createEventSchema = z
 
 export type CreatePriceTier = z.infer<typeof createPriceTierSchema>;
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+/**
+ * The body of `PUT /events/:id/featured`.
+ *
+ * A PUT carrying the value, rather than the `POST /events/:id/publish` shape
+ * the transitions use, and the difference is the point: publishing happens
+ * once and cannot be undone, so it reads as a verb. Highlighting is a flag
+ * someone flips both ways all week — an assignment, and an idempotent one, so
+ * a retry after a timeout cannot land somewhere unintended.
+ *
+ * Not part of `createEventSchema` for the same reason `status` is not:
+ * a created event is a draft, and highlighting one on the storefront would
+ * point the front page at something no visitor can open.
+ */
+export const setEventFeaturedSchema = z.object({
+  featured: z.boolean(),
+});
+
+export type SetEventFeaturedInput = z.infer<typeof setEventFeaturedSchema>;

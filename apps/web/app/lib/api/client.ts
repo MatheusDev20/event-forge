@@ -42,7 +42,12 @@ export class ApiTransportError extends Error {
 }
 
 type RequestOptions = {
-  query?: Record<string, string | number | undefined>;
+  /**
+   * Booleans are serialised by `String()` below, so `false` reaches the API as
+   * `"false"` rather than being dropped — which matters for `?featured=false`,
+   * a filter that means "everything not highlighted" and not "no filter".
+   */
+  query?: Record<string, string | number | boolean | undefined>;
   /** Seconds to cache. Omit for always-fresh. */
   revalidate?: number;
 };

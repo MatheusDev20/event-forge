@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Event-Forge Console">
+  <!--
+    The console's tab mark, built on the same rule as the storefront's.
+
+    The storefront wordmark highlights "Forge" and this one highlights
+    "Console", so the letter on the plate follows the wordmark rather than the
+    product name — which is also what keeps the two apps apart in a tab strip
+    while both are running on localhost.
+
+    Same plate, same brand colour, same reasons: see apps/web/app/icon.svg.
+  -->
+  <rect width="64" height="64" rx="14" fill="#12141b"/>
+  <path d="M42.6 21.4 A 15 15 0 1 0 42.6 42.6" fill="none" stroke="#6b8ae6" stroke-width="10"/>
+</svg>

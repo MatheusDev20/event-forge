@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Event-Forge">
+  <!--
+    The tab-sized half of the wordmark.
+
+    "EventForge" sets `Forge` in the brand colour and leaves `Event` in the
+    text colour, so the F is the half that carries the identity — and the only
+    half with any chance of reading at 16px, which is the size that actually
+    decides whether someone finds this tab.
+
+    Drawn as one path rather than set in Space Grotesk: a favicon is fetched
+    without the page's fonts, so a <text> element would render in whatever the
+    browser felt like and shift between machines.
+
+    The plate is opaque and always dark. A transparent mark would have to pick
+    a colour that survives both a light and a dark tab strip, and no single
+    colour does; carrying its own background is what makes the icon legible in
+    either, so this one deliberately does not answer prefers-color-scheme.
+  -->
+  <rect width="64" height="64" rx="14" fill="#12141b"/>
+  <path d="M20 14 H46 V24 H30 V31 H41 V41 H30 V50 H20 Z" fill="#6b8ae6"/>
+</svg>

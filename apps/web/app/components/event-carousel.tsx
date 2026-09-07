@@ -7,6 +7,9 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
   CATEGORY_ART_TINT,
+  FEATURED_LABEL,
+  FREE_LABEL,
+  isFree,
   STATUS_LABEL,
   heroImageUrl,
 } from '../lib/event-display';
@@ -151,6 +154,15 @@ function Slide({
           <span className="font-display bg-action-primary text-action-primary-fg rounded-xs px-2.75 py-1.5 text-[11.5px] font-semibold tracking-[0.12em] uppercase">
             {event.category}
           </span>
+          {/* Only when the flag is actually set. The carousel falls back to
+              soonest-first while nothing is featured (see `listFeaturedEvents`),
+              and stamping every slide "Featured" in that state would make the
+              marker mean nothing on the one page it matters most. */}
+          {event.featured ? (
+            <span className="font-display border-on-media/30 text-on-media rounded-xs border px-2.75 py-1.5 text-[11.5px] font-semibold tracking-[0.12em] uppercase backdrop-blur-[2px]">
+              {FEATURED_LABEL}
+            </span>
+          ) : null}
           <span className="text-on-media-subtle text-[13.5px]">
             {STATUS_LABEL[event.status]}
           </span>
@@ -195,7 +207,11 @@ function Slide({
           </Button>
           {event.priceFrom ? (
             <span className="text-on-media-subtle text-sm">
-              From {formatMoney(event.priceFrom)}
+              {/* Same rule as the browse card: "From" introduces a number, so
+                  a free event drops it rather than reading "From Free". */}
+              {isFree(event.priceFrom)
+                ? FREE_LABEL
+                : `From ${formatMoney(event.priceFrom)}`}
             </span>
           ) : null}
         </div>

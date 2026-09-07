@@ -18,7 +18,7 @@ import {
 import { Skeleton } from '@repo/ui/skeleton';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { EventCard } from '../components/event-card';
-import { useEvents } from '../hooks/use-events';
+import { useCities, useEvents } from '../hooks/use-events';
 import { parseEventsQuery } from '../lib/api/catalog';
 
 const SORT_LABEL: Record<ListEventsQuery['sort'], string> = {
@@ -42,6 +42,7 @@ const CATEGORY_LABEL: Record<
 
 /** The Select primitive has no empty value, so "no filter" needs a token. */
 const ANY_CATEGORY = 'all';
+const ANY_CITY = 'all';
 
 /**
  * The browse listing.
@@ -62,6 +63,12 @@ export function EventsBrowser() {
 
   const { data, isPending, isError, error, isPlaceholderData } =
     useEvents(query);
+
+  /* The city filter arrives from the home page's switcher as much as from this
+   * bar, so the options are fetched rather than hardcoded — a `?city=` this
+   * list does not know about would otherwise leave the trigger blank while the
+   * grid showed a filtered listing. */
+  const { data: cities } = useCities();
 
   /**
    * Rewrites the URL, which re-renders this component with a new query.
@@ -85,13 +92,17 @@ export function EventsBrowser() {
     });
   }
 
-  const hasFilters = Boolean(query.q || query.category);
+  const hasFilters = Boolean(query.q || query.category || query.city);
 
   return (
     <div className="mx-auto flex max-w-[90rem] flex-col gap-6 px-4 py-8 lg:px-8">
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-text text-3xl font-bold tracking-[-0.03em]">
-          {query.q ? `Results for "${query.q}"` : 'Browse events'}
+          {query.q
+            ? `Results for "${query.q}"`
+            : query.city
+              ? `Events in ${query.city}`
+              : 'Browse events'}
         </h1>
         <p className="text-text-muted text-sm" aria-live="polite">
           {isPending
@@ -101,6 +112,29 @@ export function EventsBrowser() {
       </header>
 
       <div className="border-border-subtle flex flex-wrap items-center gap-3 border-y py-3">
+        <Select
+          value={query.city ?? ANY_CITY}
+          onValueChange={(value) =>
+            update({ city: value === ANY_CITY ? undefined : value })
+          }
+        >
+          <SelectTrigger className="w-44" aria-label="Filter by city">
+            {/* Given explicitly for the same reason as the category trigger
+                below — and for one more: a city arriving in the URL may not be
+                among the fetched options at all, and echoing it back is better
+                than showing "All cities" over a filtered grid. */}
+            <SelectValue>{query.city ?? 'All cities'}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_CITY}>All cities</SelectItem>
+            {cities?.map((option) => (
+              <SelectItem key={option.city} value={option.city}>
+                {option.city}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Select
           value={query.category ?? ANY_CATEGORY}
           onValueChange={(value) =>
@@ -230,6 +264,7 @@ export function EventsBrowserSkeleton() {
       </header>
 
       <div className="border-border-subtle flex flex-wrap items-center gap-3 border-y py-3">
+        <Skeleton className="h-10 w-44" />
         <Skeleton className="h-10 w-44" />
         <Skeleton className="h-10 w-44" />
       </div>

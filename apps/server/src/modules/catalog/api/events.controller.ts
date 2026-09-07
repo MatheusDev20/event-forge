@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -17,12 +18,14 @@ import {
   eventIdSchema,
   eventSlugSchema,
   listEventsQuerySchema,
+  setEventFeaturedSchema,
   HERO_IMAGE_FIELD,
   HERO_IMAGE_MAX_BYTES,
   type CreateEventInput,
   type EventDetail,
   type ListEventsQuery,
   type ListEventsResponse,
+  type SetEventFeaturedInput,
 } from '@repo/contracts/catalog';
 import { ZodValidationPipe } from '../../../shared/http/zod-validation.pipe';
 import { CatalogService } from '../application/catalog.service';
@@ -176,6 +179,37 @@ export class EventsController {
     );
   }
 
+  /**
+   * Highlights the event on the storefront, or stops.
+   *
+   * `PUT` rather than the `POST /:id/publish` shape the transitions use.
+   * Publishing happens once and cannot be undone, which is what makes it a
+   * verb; this is a flag an editor flips both ways, so it is an assignment —
+   * and an idempotent one, so a client that retries after a timeout cannot end
+   * up somewhere it did not ask for.
+   *
+   * The body carries the value instead of the route carrying `/feature` and
+   * `/unfeature`, because two routes for one field is two things to keep in
+   * step and one of them will eventually grow a check the other lacks.
+   *
+   * Declared above `@Get(':slug')` by convention, like `publish`.
+   *
+   * Open to anyone, like the rest of this controller. Authorization is Slice 4
+   * — and this is the endpoint that will want it most, since it decides what a
+   * visitor sees first.
+   */
+  @Put(':id/featured')
+  @HttpCode(HttpStatus.OK)
+  async setFeatured(
+    @Param('id', new ZodValidationPipe(eventIdSchema)) id: string,
+    @Body(new ZodValidationPipe(setEventFeaturedSchema))
+    body: SetEventFeaturedInput,
+  ): Promise<EventDetail> {
+    return toEventDetail(
+      await this.catalog.setEventFeatured(id, body.featured),
+    );
+  }
+
   @Get(':slug')
   async detail(
     @Param('slug', new ZodValidationPipe(eventSlugSchema)) slug: string,
@@ -192,6 +226,7 @@ function toCriteria(query: ListEventsQuery): ListEventsCriteria {
     category: query.category,
     startsFrom: query.from ? new Date(query.from) : undefined,
     startsUntil: query.to ? new Date(query.to) : undefined,
+    featured: query.featured,
     sort: query.sort,
     page: query.page,
     pageSize: query.pageSize,

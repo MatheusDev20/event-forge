@@ -271,6 +271,27 @@ export class CatalogService {
   }
 
   /**
+   * Highlights an event on the storefront, or stops highlighting it.
+   *
+   * The only rule is that the event exists. There is deliberately no status
+   * check here — no "you may only feature a published event" — because the
+   * public listing already refuses to return a draft, so featuring one puts it
+   * nowhere a visitor can reach. Adding a guard would forbid the useful case
+   * along with the harmless one: lining up next week's banner while the events
+   * are still drafts, so the front page is right the moment they go live.
+   *
+   * Idempotent, and no concurrency check for the same reason `setFeatured`
+   * has none: two callers asking for the same flag want the same end state.
+   */
+  async setEventFeatured(id: string, featured: boolean): Promise<EventEntity> {
+    if (!(await this.events.setFeatured(id, featured))) {
+      throw new NotFoundException(`No event with id "${id}"`);
+    }
+
+    return this.readBack(id, featured ? 'Featured' : 'Unfeatured');
+  }
+
+  /**
    * An event's status, for another bounded context.
    *
    * Inventory asks this before granting a hold, because docs/domain-model.md

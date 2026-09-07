@@ -34,6 +34,7 @@ export function toEventSummary(event: EventEntity): EventSummary {
     },
     priceFrom: cheapestTier(event.priceTiers ?? []),
     heroImageUrl: event.heroImageUrl,
+    featured: event.featured,
   };
 }
 

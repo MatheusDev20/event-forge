@@ -10,6 +10,8 @@ export type ListEventsCriteria = {
   category?: EventCategory;
   startsFrom?: Date;
   startsUntil?: Date;
+  /** Highlighted events only, or everything but. Undefined means both. */
+  featured?: boolean;
   sort: EventSortOrder;
   page: number;
   pageSize: number;

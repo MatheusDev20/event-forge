@@ -10,7 +10,12 @@ import {
   useQuery,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { CATALOG_REVALIDATE_SECONDS, listEvents } from '../lib/api/catalog';
+import {
+  CATALOG_REVALIDATE_SECONDS,
+  listCities,
+  listEvents,
+  type CityOption,
+} from '../lib/api/catalog';
 import { ApiRequestError } from '../lib/api/client';
 
 /**
@@ -25,6 +30,7 @@ export const catalogKeys = {
   all: ['catalog'] as const,
   events: (query: ListEventsQuery) =>
     [...catalogKeys.all, 'events', query] as const,
+  cities: () => [...catalogKeys.all, 'cities'] as const,
 };
 
 /**
@@ -72,6 +78,27 @@ export function useEvents(
     /* A 4xx is an answer, not an outage: the query was malformed or the filter
      * matched nothing the API would serve, and asking twice more changes
      * neither. Only transport failures and 5xx are worth a retry. */
+    retry: (failureCount, error) =>
+      error instanceof ApiRequestError && error.statusCode < 500
+        ? false
+        : failureCount < 2,
+  });
+}
+
+/**
+ * The cities to offer as a filter.
+ *
+ * Its own query key rather than a `select` over an events query: the grouping
+ * is a page of its own size and sort (see `listCities`), and hanging it off
+ * whatever listing the browser happens to be showing would refetch the city
+ * list every time someone changed a filter — and shorten it to the cities on
+ * the current page while they were at it.
+ */
+export function useCities(): UseQueryResult<CityOption[], Error> {
+  return useQuery({
+    queryKey: catalogKeys.cities(),
+    queryFn: listCities,
+    staleTime: CATALOG_REVALIDATE_SECONDS * 1000,
     retry: (failureCount, error) =>
       error instanceof ApiRequestError && error.statusCode < 500
         ? false

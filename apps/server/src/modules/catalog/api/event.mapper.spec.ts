@@ -23,6 +23,7 @@ const anEvent = (overrides: Partial<EventEntity> = {}): EventEntity =>
     endsAt: new Date('2026-09-02T02:00:00.000Z'),
     doorsOpenAt: new Date('2026-09-01T22:00:00.000Z'),
     heroImageUrl: null,
+    featured: false,
     venueId: 'venue-1',
     organizerId: 'organizer-1',
     createdAt: new Date(),

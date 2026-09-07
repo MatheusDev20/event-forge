@@ -1,4 +1,6 @@
 import type { EventCategory, EventStatus } from '@repo/contracts/catalog';
+import type { Money } from '@repo/contracts/shared';
+import { formatMoney } from './format';
 
 /**
  * How an Event is *said* in the UI, in one place.
@@ -17,6 +19,40 @@ export const STATUS_LABEL: Record<EventStatus, string> = {
   closed: 'Sales closed',
   cancelled: 'Cancelled',
 };
+
+/**
+ * What a highlighted event is called on screen.
+ *
+ * One word, in one place, for the same reason `STATUS_LABEL` is here: the card
+ * and the carousel both say it, and two copies drift the first time someone
+ * prefers "Spotlight". The column is `featured` and so is the wording — a
+ * marker whose label does not match the flag an organizer just set is a
+ * support question waiting to happen.
+ */
+export const FEATURED_LABEL = 'Featured';
+
+/**
+ * Zero is a price, and "R$ 0,00" is not how anyone says it.
+ *
+ * The wording lives here rather than in `formatMoney` because it is a wording
+ * decision and not a formatting one: a refund line or an organizer's revenue
+ * total showing "Free" instead of "R$ 0,00" would be wrong, so the money
+ * formatter stays literal and the storefront chooses this word for itself.
+ */
+export const FREE_LABEL = 'Free';
+
+export function isFree(money: Money): boolean {
+  return money.amountMinor === 0;
+}
+
+/**
+ * One tier's price, as a buyer reads it. For the cheapest-of-many "from" line
+ * the callers branch themselves — see `EventCard` — because "From Free" is not
+ * a sentence and the prefix has to disappear along with the number.
+ */
+export function formatPrice(money: Money): string {
+  return isFree(money) ? FREE_LABEL : formatMoney(money);
+}
 
 /**
  * Only `on_sale` accepts holds (docs/domain-model.md), so every other status
