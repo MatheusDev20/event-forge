@@ -21,9 +21,32 @@ import dataSource from '../data-source';
  * twice leaves the same database rather than a doubled one. Dates are relative
  * to the run, so the "upcoming events" list is never stale.
  *
- * The spread is deliberate — enough events to page through, several cities and
- * categories to filter by, a wide price range to sort by, and a few non-public
- * statuses that must never appear in the public listing.
+ * Nothing here is published. Every sellable event is seeded as a `draft`,
+ * because publishing is a transition, not a column value: `publishEvent`
+ * emits `EventPublished`, `SnapshotOnPublish` catches it, and only then does
+ * Inventory copy the layout into `allocations` (ADR-0006). A row written
+ * straight to `published` by this script skips all of that and lands in a
+ * state no request can repair — visible, and with nothing to sell.
+ *
+ * So the seed stops at the last point before that transition and leaves the
+ * publishing to you. `publishBlocker` has no date rule, and every draft below
+ * satisfies the structural ones — a seat map, at least one price tier, and
+ * every section covered — so all 23 publish cleanly.
+ *
+ * The spread is deliberate — enough events to page through, and every axis the
+ * public listing can filter, sort or paginate on is pushed to both ends:
+ *
+ *   - all nine venues carry events, so all six cities appear in a city filter
+ *     and none of them returns a single lonely row;
+ *   - all six categories, none of them a singleton;
+ *   - prices from free (`Entrada Franca`, 0) to R$ 3.500, so a price sort has
+ *     real extremes at both ends rather than a clump in the middle;
+ *   - dates from 45 days past to 120 days out, including one tomorrow;
+ *   - one to four price tiers per event — the two four-tier events sit in the
+ *     two four-section houses, so publishing either snapshots a full house;
+ *   - four events that are not drafts and never will be: two `cancelled` and
+ *     two `closed`. They are the negative cases — excluded from the public
+ *     listing, and refused by `publishEvent` with `wrong_status`.
  */
 
 const VENUES = [
@@ -157,12 +180,13 @@ const EVENTS: EventSeed[] = [
   {
     title: 'Neon Cathedral — South American Tour',
     category: 'music',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 12,
     venue: 0,
     organizer: 0,
     tiers: [
       ['Pista', 18000],
+      ['Cadeira Superior', 24000],
       ['Pista Premium', 32000],
       ['Camarote', 58000],
     ],
@@ -170,24 +194,9 @@ const EVENTS: EventSeed[] = [
       'The synth-rock five-piece bring their sold-out European run to São Paulo for one night, with the full analogue stage rig and a support set from Vale Nova.',
   },
   {
-    title: 'Midnight Orchestra plays Ravel',
-    category: 'theatre',
-    status: 'on_sale',
-    inDays: 5,
-    venue: 2,
-    organizer: 3,
-    tiers: [
-      ['Balcony', 9000],
-      ['Stalls', 16000],
-      ['Box', 27000],
-    ],
-    description:
-      'A late-evening programme of Ravel and Debussy, performed by candlelight in the Theatro Municipal main hall.',
-  },
-  {
     title: 'Clássico: Palmeiras × Corinthians',
     category: 'sports',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 21,
     venue: 0,
     organizer: 1,
@@ -202,7 +211,7 @@ const EVENTS: EventSeed[] = [
   {
     title: 'Forge Summit 2026',
     category: 'conference',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 47,
     venue: 1,
     organizer: 2,
@@ -215,10 +224,68 @@ const EVENTS: EventSeed[] = [
       'Two days on distributed systems, developer tooling, and the unglamorous work of running software at scale. Thirty talks across three tracks.',
   },
   {
+    title: 'Design Systems Day',
+    category: 'conference',
+    status: 'draft',
+    inDays: 40,
+    venue: 1,
+    organizer: 2,
+    tiers: [
+      ['Standard', 39000],
+      ['Team of 4', 132000],
+    ],
+    description:
+      'One track, eight talks, on tokens, governance, and what happens to a design system after its first year.',
+  },
+  {
+    title: 'Midnight Orchestra plays Ravel',
+    category: 'theatre',
+    status: 'draft',
+    inDays: 5,
+    venue: 2,
+    organizer: 3,
+    tiers: [
+      ['Balcony', 9000],
+      ['Stalls', 16000],
+      ['Box', 27000],
+    ],
+    description:
+      'A late-evening programme of Ravel and Debussy, performed by candlelight in the Theatro Municipal main hall.',
+  },
+  {
+    title: 'Orquestra Sinfônica — Temporada de Verão',
+    category: 'theatre',
+    status: 'draft',
+    inDays: 55,
+    venue: 2,
+    organizer: 3,
+    tiers: [
+      ['Balcony', 10000],
+      ['Stalls', 18000],
+      ['Box', 31000],
+    ],
+    description:
+      'The summer season opens with Villa-Lobos, Márquez, and a new commission from Helena Braz.',
+  },
+  {
+    title: 'Vale Nova — Album Release',
+    category: 'music',
+    status: 'draft',
+    inDays: 28,
+    venue: 3,
+    organizer: 0,
+    tiers: [
+      ['Pista', 11000],
+      ['Pista Premium', 19000],
+    ],
+    description:
+      'Playing the new record front to back, then everything else they have got.',
+  },
+  {
     title: 'Ana Prado — Ao Vivo',
     category: 'music',
-    status: 'on_sale',
-    inDays: 3,
+    status: 'draft',
+    inDays: 2,
     venue: 4,
     organizer: 0,
     tiers: [
@@ -226,12 +293,12 @@ const EVENTS: EventSeed[] = [
       ['Mezanino', 21000],
     ],
     description:
-      'An intimate acoustic show at Vivo Rio, recorded for the forthcoming live album.',
+      'An intimate acoustic show at Vivo Rio, recorded for the forthcoming live album. The nearest date in the fixture — publish this one to watch a small mixed layout snapshot.',
   },
   {
     title: 'Stand-Up Sunday: Open Mic Finals',
     category: 'comedy',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 9,
     venue: 4,
     organizer: 4,
@@ -240,9 +307,24 @@ const EVENTS: EventSeed[] = [
       'Twelve comics, five minutes each, one trophy that is objectively quite ugly. Doors at 19:00.',
   },
   {
+    title: 'Copa Sudamericana — Quarter Final',
+    category: 'sports',
+    status: 'draft',
+    inDays: 34,
+    venue: 5,
+    organizer: 1,
+    tiers: [
+      ['Geral', 9000],
+      ['Superior', 19000],
+      ['Camarote', 62000],
+    ],
+    description:
+      'Second leg at the Mineirão, with the tie level after a goalless first leg.',
+  },
+  {
     title: 'Festival Horizonte — Day One',
     category: 'festival',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 63,
     venue: 6,
     organizer: 2,
@@ -256,64 +338,21 @@ const EVENTS: EventSeed[] = [
   {
     title: 'Festival Horizonte — Full Weekend',
     category: 'festival',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 63,
     venue: 6,
     organizer: 2,
     tiers: [
       ['Weekend Pass', 68000],
-      ['Weekend VIP', 145000],
+      ['Weekend VIP', 350000],
     ],
     description:
-      'All three days, all four stages, plus access to the riverside camping field.',
-  },
-  {
-    title: 'A Casa Vazia',
-    category: 'theatre',
-    status: 'on_sale',
-    inDays: 16,
-    venue: 2,
-    organizer: 3,
-    tiers: [
-      ['Plateia', 8000],
-      ['Frisa', 15000],
-    ],
-    description:
-      'Marina Lobo’s two-hander about a house sale that neither sibling wants, in its final month.',
-  },
-  {
-    title: 'Copa Sudamericana — Quarter Final',
-    category: 'sports',
-    status: 'on_sale',
-    inDays: 34,
-    venue: 5,
-    organizer: 1,
-    tiers: [
-      ['Geral', 9000],
-      ['Superior', 19000],
-      ['Camarote', 62000],
-    ],
-    description:
-      'Second leg at the Mineirão, with the tie level after a goalless first leg.',
-  },
-  {
-    title: 'Vale Nova — Album Release',
-    category: 'music',
-    status: 'on_sale',
-    inDays: 28,
-    venue: 3,
-    organizer: 0,
-    tiers: [
-      ['Pista', 11000],
-      ['Pista Premium', 19000],
-    ],
-    description:
-      'Playing the new record front to back, then everything else they have got.',
+      'All three days, all four stages, plus riverside camping. The VIP package is the most expensive ticket in the fixture.',
   },
   {
     title: 'Noite de Samba na Concha',
     category: 'music',
-    status: 'on_sale',
+    status: 'draft',
     inDays: 7,
     venue: 7,
     organizer: 4,
@@ -322,100 +361,20 @@ const EVENTS: EventSeed[] = [
       'Six groups rotating through the Concha Acústica from sundown, as they have every first Friday since 1998.',
   },
   {
-    title: 'Design Systems Day',
-    category: 'conference',
-    status: 'on_sale',
-    inDays: 40,
-    venue: 1,
-    organizer: 2,
-    tiers: [
-      ['Standard', 39000],
-      ['Team of 4', 132000],
-    ],
-    description:
-      'One track, eight talks, on tokens, governance, and what happens to a design system after its first year.',
-  },
-  {
-    title: 'Improviso Total',
-    category: 'comedy',
-    status: 'on_sale',
-    inDays: 19,
-    venue: 4,
-    organizer: 4,
-    tiers: [
-      ['General', 7500],
-      ['Front Rows', 13000],
-    ],
-    description:
-      'Long-form improv built entirely from audience suggestions. No two shows have ever been the same, allegedly.',
-  },
-  {
-    title: 'Orquestra Sinfônica — Temporada de Verão',
-    category: 'theatre',
-    status: 'on_sale',
-    inDays: 55,
-    venue: 2,
-    organizer: 3,
-    tiers: [
-      ['Balcony', 10000],
-      ['Stalls', 18000],
-      ['Box', 31000],
-    ],
-    description:
-      'The summer season opens with Villa-Lobos, Márquez, and a new commission from Helena Braz.',
-  },
-  {
-    title: 'Maratona de São Paulo',
-    category: 'sports',
-    status: 'on_sale',
-    inDays: 71,
-    venue: 0,
-    organizer: 1,
-    tiers: [
-      ['5K', 9500],
-      ['21K', 17000],
-      ['42K', 26000],
-    ],
-    description:
-      'Three distances, one start line at Allianz Parque. Entry includes chip timing and the finisher kit.',
-  },
-  {
     title: 'Cinema ao Ar Livre: Noite Kurosawa',
     category: 'festival',
-    status: 'on_sale',
-    inDays: 11,
-    venue: 6,
-    organizer: 4,
-    tiers: [['General', 4000]],
-    description:
-      'Two Kurosawa restorations projected onto the quarry wall. Bring something to sit on.',
-  },
-  {
-    title: 'Tech Interlúdio — Meetup Anual',
-    category: 'conference',
-    status: 'published',
-    inDays: 84,
-    venue: 1,
-    organizer: 2,
-    tiers: [['Standard', 12000]],
-    description:
-      'The annual all-day meetup. Published now; tickets go on sale next month.',
-  },
-  {
-    title: 'Corais do Sul — Encontro',
-    category: 'music',
-    status: 'published',
-    inDays: 90,
+    status: 'draft',
+    inDays: 1,
     venue: 7,
-    organizer: 3,
-    tiers: [['Único', 5000]],
+    organizer: 4,
+    tiers: [['Entrada Franca', 0]],
     description:
-      'Fourteen choirs from across the south, closing with a combined 300-voice performance.',
+      'Two Kurosawa restorations under the shell of the Concha Acústica, free to anyone who turns up. Bring something to sit on. The only zero-priced tier in the fixture, and the earliest date.',
   },
   {
     title: 'Circo Moderno — Estreia',
     category: 'theatre',
-    status: 'published',
+    status: 'draft',
     inDays: 38,
     venue: 3,
     organizer: 3,
@@ -427,23 +386,24 @@ const EVENTS: EventSeed[] = [
       'Contemporary circus with a live score. Opening night, with the company in attendance.',
   },
   {
-    title: 'Rally Cross Paraná',
+    title: 'Campeonato Mineiro — Final',
     category: 'sports',
-    status: 'published',
-    inDays: 96,
-    venue: 6,
+    status: 'draft',
+    inDays: 78,
+    venue: 5,
     organizer: 1,
     tiers: [
-      ['Geral', 8000],
-      ['Paddock', 30000],
+      ['Geral', 7000],
+      ['Superior', 14000],
+      ['Camarote', 40000],
     ],
     description:
-      'Round four of the national championship, on the gravel circuit.',
+      'The state final, back at the Mineirão. A three-counter stadium layout — the cheapest publish in the fixture, and the fastest snapshot.',
   },
   {
     title: 'Festival Horizonte — Day Two',
     category: 'festival',
-    status: 'published',
+    status: 'draft',
     inDays: 64,
     venue: 6,
     organizer: 2,
@@ -455,26 +415,59 @@ const EVENTS: EventSeed[] = [
       'Saturday at Pedreira Paulo Leminski. Line-up announced in full next week.',
   },
   {
+    title: 'Rally Cross Paraná',
+    category: 'sports',
+    status: 'draft',
+    inDays: 96,
+    venue: 6,
+    organizer: 1,
+    tiers: [
+      ['Geral', 8000],
+      ['Paddock', 30000],
+    ],
+    description:
+      'Round four of the national championship, on the gravel circuit.',
+  },
+  {
     title: 'Piano Solo: Nocturnes',
     category: 'theatre',
-    status: 'published',
+    status: 'draft',
     inDays: 26,
-    venue: 2,
+    venue: 8,
     organizer: 3,
-    tiers: [['Stalls', 11000]],
+    tiers: [
+      ['Galeria', 4500],
+      ['Plateia', 11000],
+      ['Balcão Nobre', 17000],
+      ['Frisa', 29000],
+    ],
     description:
-      'Chopin’s complete nocturnes in one sitting, with a single interval.',
+      'Chopin’s complete nocturnes in one sitting, with a single interval, under the dome of the Teatro Amazonas. Four tiers across all four sections — the only other event that uses a full house.',
   },
   {
     title: 'Comédia em Dobro',
     category: 'comedy',
-    status: 'published',
-    inDays: 44,
-    venue: 4,
+    status: 'draft',
+    inDays: 120,
+    venue: 8,
     organizer: 4,
     tiers: [['General', 9000]],
     description:
-      'Two headline sets in one night, from two comics who insist they are friends.',
+      'Two headline sets in one night, from two comics who insist they are friends. The furthest-out date in the fixture.',
+  },
+  {
+    title: 'Tech Interlúdio — Edição Manaus',
+    category: 'conference',
+    status: 'draft',
+    inDays: 84,
+    venue: 8,
+    organizer: 2,
+    tiers: [
+      ['Standard', 12000],
+      ['Apoiador', 26000],
+    ],
+    description:
+      'The annual all-day meetup, this year in the Teatro Amazonas. Two tiers over a four-section house, so one tier covers three sections.',
   },
   {
     title: 'Aurora Fields — Rehearsal Session',
@@ -485,7 +478,21 @@ const EVENTS: EventSeed[] = [
     organizer: 0,
     tiers: [['Pista', 15000]],
     description:
-      'Still being scheduled — must never appear in the public listing.',
+      'Still being scheduled. Nothing distinguishes it from its neighbours any more — every sellable event in this fixture is a draft.',
+  },
+  {
+    title: 'Improviso Total',
+    category: 'comedy',
+    status: 'draft',
+    inDays: 19,
+    venue: 4,
+    organizer: 4,
+    tiers: [
+      ['General', 7500],
+      ['Front Rows', 13000],
+    ],
+    description:
+      'Long-form improv built entirely from audience suggestions. No two shows have ever been the same, allegedly.',
   },
   {
     title: 'Encontro Regional (Adiado)',
@@ -496,17 +503,51 @@ const EVENTS: EventSeed[] = [
     organizer: 2,
     tiers: [['Standard', 20000]],
     description:
-      'Cancelled by the organizer — must never appear in the public listing.',
+      'Cancelled by the organizer — not publishable, so `publishEvent` answers `wrong_status`.',
   },
   {
-    title: 'Retrospectiva 2025',
-    category: 'festival',
+    title: 'Rock no Mineirão — Edição 2026',
+    category: 'music',
+    status: 'cancelled',
+    inDays: 58,
+    venue: 5,
+    organizer: 0,
+    tiers: [
+      ['Geral', 15000],
+      ['Superior', 28000],
+      ['Camarote', 95000],
+    ],
+    description:
+      'Pulled two months out after the headliner withdrew. Cancelled but still in the future, unlike the closed pair below — and not publishable, so `publishEvent` answers `wrong_status`.',
+  },
+  {
+    title: 'Maratona de São Paulo',
+    category: 'sports',
     status: 'closed',
-    inDays: -14,
-    venue: 7,
-    organizer: 4,
-    tiers: [['General', 6000]],
-    description: 'Already happened — must never appear in the public listing.',
+    inDays: -45,
+    venue: 0,
+    organizer: 1,
+    tiers: [
+      ['5K', 9500],
+      ['21K', 17000],
+      ['42K', 26000],
+    ],
+    description:
+      'Three distances, one start line at Allianz Parque. Ran six weeks ago — the furthest-back date in the fixture, and must never appear in the public listing.',
+  },
+  {
+    title: 'A Casa Vazia',
+    category: 'theatre',
+    status: 'closed',
+    inDays: -3,
+    venue: 2,
+    organizer: 3,
+    tiers: [
+      ['Plateia', 8000],
+      ['Frisa', 15000],
+    ],
+    description:
+      'Marina Lobo’s two-hander about a house sale that neither sibling wants. Closed its run on Sunday — recently past rather than long past, and must never appear in the public listing.',
   },
 ];
 
@@ -691,22 +732,80 @@ async function seed(): Promise<void> {
 
     await dataSource.getRepository(PriceTierSectionEntity).save(tierSections);
 
-    const publicCount = EVENTS.filter((event) =>
-      ['published', 'on_sale'].includes(event.status),
+    const draftCount = EVENTS.filter(
+      (event) => event.status === 'draft',
     ).length;
 
     console.log(
       `Seeded ${organizers.length} organizers, ${venues.length} venues, ` +
-        `${events.length} events (${publicCount} publicly visible).`,
+        `${events.length} events (${draftCount} drafts, ${events.length - draftCount} cancelled/closed).`,
     );
     console.log(
       `Seat maps: ${seatMaps.length} layouts, ${sections.length} sections, ` +
         `${rows.length} rows, ${seats.length} seats, ` +
         `${tierSections.length} tier-to-section mappings.`,
     );
+
+    printNextSteps(events);
   } finally {
     await dataSource.destroy();
   }
+}
+
+/**
+ * What one publish is about to cost, per venue layout.
+ *
+ * The snapshot rule ADR-0006 settles on: a seated section becomes one
+ * allocation per seat, a general-admission section one allocation holding a
+ * counter. That is why the two numbers below are three orders of magnitude
+ * apart, and why picking the right event to publish first matters.
+ */
+function allocationCount(layout: LayoutSeed): number {
+  return layout.sections.reduce(
+    (total, section) =>
+      total +
+      (section.kind === 'seated' ? section.rows * section.seatsPerRow : 1),
+    0,
+  );
+}
+
+/**
+ * The walk-through, printed where it is needed rather than kept in a README
+ * nobody has open at 2am — the same reason `seed-simple.ts` prints one.
+ *
+ * Ids are generated rather than fixed here, so unlike that file's fixed-uuid
+ * commands these are only copy-pasteable until the next re-seed. Printing them
+ * is the point: without this you would be writing the SQL to find them.
+ */
+function printNextSteps(events: { id: string }[]): void {
+  const api = 'http://localhost:3001/api/v1';
+  const pick = (title: string): { id: string; seed: EventSeed } => {
+    const index = EVENTS.findIndex((event) => event.title === title);
+    return { id: events[index].id, seed: EVENTS[index] };
+  };
+
+  const cheap = pick('Campeonato Mineiro — Final');
+  const full = pick('Piano Solo: Nocturnes');
+
+  console.log(`
+Nothing is published. Publishing is what makes Inventory snapshot the layout
+into allocations, so until you do, "allocations" is empty and that is correct.
+
+  # Smallest snapshot — three counters, ${allocationCount(LAYOUTS[cheap.seed.venue])} allocations
+  curl -s -X POST ${api}/events/${cheap.id}/publish | jq '.status'
+
+  # Full house — Teatro Amazonas, ${allocationCount(LAYOUTS[full.seed.venue])} allocations across four sections
+  curl -s -X POST ${api}/events/${full.id}/publish | jq '.status'
+
+  # Then open the doors; only an on_sale event accepts holds
+  curl -s -X POST ${api}/events/${cheap.id}/on-sale | jq '.status'
+
+  # And see what you can now sell
+  curl -s '${api}/events/${cheap.id}/availability' | jq '.items'
+
+Ids change on every re-seed. To list them all:
+  docker exec event-forge-postgres-1 psql -U postgres -d event_forge_db \\
+    -c "select id, status, title from events order by status, title;"`);
 }
 
 seed().catch((error: unknown) => {

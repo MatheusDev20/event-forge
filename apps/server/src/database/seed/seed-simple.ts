@@ -13,7 +13,7 @@ import dataSource from '../data-source';
 /**
  * The smallest database the OneSeatExperiment can be run against, by hand.
  *
- * `seed.ts` is the demo fixture: eight venues, 27 events, 824 seats — enough to
+ * `seed.ts` is the demo fixture: nine venues, 27 events, 1,316 seats — enough to
  * page, filter and sort a storefront. That is the wrong shape for learning the
  * hold path, where the only question is *who got the seat*, and every extra row
  * is one more thing to scroll past on the way to the answer.
