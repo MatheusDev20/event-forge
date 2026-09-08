@@ -125,7 +125,7 @@ export function NotesFilter({
                 {note.title}
               </Link>
               {note.question && (
-                <p className="mt-1 text-sm text-neutral-600">{note.question}</p>
+                <p className="mt-1 text-[13px] text-neutral-600">{note.question}</p>
               )}
             </li>
           ))}

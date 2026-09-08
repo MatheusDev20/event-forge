@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import Link from 'next/link';
+import { DevReload } from './components/dev-reload';
 import { LanguageSwitch } from './components/language-switch';
 import './styles/global.css';
 
@@ -86,6 +87,8 @@ export default function RootLayout({
             Matheus de Paula © {new Date().getFullYear()}
           </footer>
         </div>
+        {/* Reloads on a write-up edit. Development only; see the `dev` script. */}
+        {process.env.NODE_ENV === 'development' && <DevReload />}
       </body>
     </html>
   );

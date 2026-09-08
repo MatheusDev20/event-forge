@@ -1,20 +1,79 @@
-# OneSeatExperiment
+# One Seat Experiment
 
-> Two attendees request **the same seat**, for the same event, at the same
-> instant, moments after it went on sale. **Exactly one gets it.**
+> This article is a part of a series of "experiments" that i run against a lab project Event Forge a fake ticket-selling plataform to study and test concepts
 
-Status: **green**. Baseline strategy is pessimistic locking —
-`SELECT … FOR UPDATE` on the allocation rows.
+## Ideia principal
 
-## The setup
+Plataformas de ingressos recebem um número de acesso incostante, que podem variar de acordo com a alta demanda de eventos específicos, meu objetivo é verificar comportamentos concorrentes em eventos com baixa de disponibilidade de ingressos e alta demanda.
 
-`pnpm db:fresh:simple` builds the smallest database that can answer this: one
-venue, one layout, one row of four seats, and a ten-unit general-admission
-counter. Both kinds are present because they contend differently — four seats
-are four rows locked one at a time, the counter is a single hot row every
-claim serialises on.
+Um mesmo assento sendo requisitado N ou mais vezes.
 
-## Run it by hand
+
+## Entendimento básico do modelo de dados.
+
+O Event Forge tem algumas outras tabelas das que aparecem aqui, organizador,
+locais, mapa de assentos, faixas de preço. Nada disso importa pra esse
+experimento em específico. Só três tabelas entram me interessam, e a briga pela escrita em uma delas especialmente.
+
+### Tabela **allocations** e a row disputada.
+
+Uma linha por unidade de capacidade à venda em um evento. Pra assento numerado
+isso é literalmente uma linha por assento, e a capacidade dela é `1` — não por
+convenção, mas por constraint (`allocations_seat_identity_matches_kind_check`
+não deixa um assento existir com outro valor).
+
+![As três tabelas que esse experimento toca: allocations, holds e hold_lines.](/media/assets/data-model.png)
+
+As colunas que interessam são três:
+
+| coluna | o que é |
+| --- | --- |
+| `capacity` | quantas unidades existem. `1` pra um assento. |
+| `held` | reivindicado, ainda não pago. Volta a sair em expiração, cancelamento ou falha. |
+| `reserved` | pago. Terminal. |
+
+Quando oito requisições disputam o mesmo assento, elas estão disputando **uma
+linha só** dessa tabela. É esse o ponto: reduzir a disputa ao menor objeto
+possível — uma linha com `capacity = 1` — e contar quantas conseguem sair de lá
+com o assento na mão.
+
+### A invariante mora no banco, não no código
+
+A regra que esse contexto inteiro existe pra manter é uma só:
+
+```
+held + reserved <= capacity
+```
+
+E ela não é um `if` no serviço. É um CHECK constraint na tabela,
+`allocations_no_oversell_check`.
+
+Essa diferença é o que dá sentido ao experimento. Se a invariante vivesse no
+código da aplicação, um teste verde provaria "o código que eu escrevi hoje está
+certo" — o que vale pouco, porque a promessa precisa sobreviver justamente ao
+código errado. Como CHECK, quem recusa a escrita é o Postgres. Uma estratégia de
+lock quebrada não consegue vender o mesmo assento duas vezes; ela só consegue
+falhar, e falhar de um jeito que aparece.
+
+É a diferença entre um experimento e uma torcida: eu não preciso confiar no meu
+próprio código pra confiar no resultado.
+
+### `holds` e `hold_lines` — quem ficou com o assento
+
+`holds` é a reivindicação em si: `holder_id` (quem está pegando), `status` e
+`expires_at`. `hold_lines` diz o que foi pego — qual `allocation_id` e quantas
+unidades.
+
+Nenhuma das duas impede oversell. Isso é trabalho do CHECK e do lock. O que elas
+permitem é a pergunta que o experimento faz *depois* da corrida: **quem ganhou?**
+Contar quantos `201` e quantos `409` voltaram mede a API. Conseguir apontar no
+banco o único dono daquele assento, com nome, mede o sistema.
+
+Um detalhe honesto sobre `expires_at`: a coluna é escrita, mas ninguém lê. Não
+existe sweeper e nenhuma consulta de disponibilidade desconta hold vencido, então
+hoje um hold expirado segura o assento pra sempre. Isso é uma lacuna conhecida e
+proposital — expiração é outro experimento — e não afeta esse aqui, que roda
+sempre contra um assento novo.
 
 The seed prints the whole walk-through. Short version, after `pnpm dev`:
 

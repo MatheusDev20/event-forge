@@ -63,6 +63,13 @@
   padding: 1rem;
   overflow-x: auto;
 }
+/* Diagrams are exported at whatever width they were drawn; the column is
+   narrower than most of them. */
+.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 /* Tables carry real results in these write-ups, so they must stay readable. */
 .prose table {
   display: block;

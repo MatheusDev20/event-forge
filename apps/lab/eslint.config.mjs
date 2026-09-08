@@ -22,6 +22,11 @@ export default [
     languageOptions: { globals: globals.node, sourceType: 'commonjs' },
   },
   {
+    // Dev tooling, run by Node rather than bundled into the app.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
+  {
     ignores: ['.next/**', 'next-env.d.ts'],
   },
 ];
