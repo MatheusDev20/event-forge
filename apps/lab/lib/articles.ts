@@ -14,6 +14,7 @@ import matter from 'gray-matter';
  *         one-seat-experiment.md       <- the main write-up
  *         takeaways.md                 <- a sub-page
  *     programming/
+ *     assets/                          <- images, not a category
  */
 const ARTICLES_DIR = path.resolve(
   /* turbopackIgnore: true */
@@ -37,6 +38,13 @@ export type Category = {
   /** Display name, e.g. `Event Forge`. */
   label: string;
 };
+
+/**
+ * Folders under `articles/` that hold something other than write-ups, and so
+ * must not turn into a filter on the home page. `assets/` is where shared
+ * images live; `scripts/article-assets.mjs` mirrors it into `public/media`.
+ */
+const NOT_CATEGORIES = new Set(['assets']);
 
 export type Article = {
   /** Category folder the article sits in, e.g. `event-forge`. */
@@ -137,10 +145,9 @@ function loadArticle(category: string, slug: string): Article | null {
  * this, so adding a folder under `articles/` is all it takes to add a filter.
  */
 export function getCategories(): Category[] {
-  return subdirectories(ARTICLES_DIR).map((slug) => ({
-    slug,
-    label: titleize(slug),
-  }));
+  return subdirectories(ARTICLES_DIR)
+    .filter((slug) => !NOT_CATEGORIES.has(slug))
+    .map((slug) => ({ slug, label: titleize(slug) }));
 }
 
 /** Every article in every category, alphabetically within each category. */

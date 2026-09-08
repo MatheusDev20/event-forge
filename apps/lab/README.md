@@ -23,7 +23,13 @@ articles/
       one-seat-experiment.md     #    the main write-up
       takeaways.md               #    a sub-page
   programming/                   # a category -> the "Programming" filter
+  assets/                        # images; not a category, so not a filter
 ```
+
+Images anywhere under `articles/` are mirrored into `public/media/`, keeping
+their path, because Next only serves static files from `public/`. Reference
+them absolutely — `articles/assets/x.png` is `/media/assets/x.png`. A relative
+path resolves against the page, not the file, and breaks on sub-pages.
 
 The category folders are what the home page filter is built from, so adding a
 chip means adding a folder. The main write-up in an article folder is

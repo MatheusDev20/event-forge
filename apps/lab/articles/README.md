@@ -9,7 +9,12 @@ articles/
       one-seat-experiment.md      #   the main write-up
       takeaways.md                #   a sub-page -> .../one-seat-experiment/takeaways
   programming/                    # a category -> the "Programming" filter
+  assets/                         # images; not a category, so not a filter
 ```
+
+Images are mirrored into `public/media/` keeping their path under `articles/`,
+so `assets/data-model.png` is `/media/assets/data-model.png`. Always reference
+that absolute URL — a relative one resolves against the page, not the file.
 
 The category folders drive the home page filter, so adding a chip means adding
 a folder. Its label is the folder name titleized: `event-forge` reads as
