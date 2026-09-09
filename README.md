@@ -11,9 +11,9 @@ The product itself is ticket plataform, i figure that that it might be a good sy
 
 ## Experiments
 
-Each one is written up in [`apps/lab/articles/`](apps/lab/articles/), which is
-also what the public lab site serves.
+The write-ups used to live in `apps/lab/` here. That app has been removed —
+they now live in my personal site repository and are served from `/writing`.
 
 | # | Experiment | Question | Status |
 | - | ---------- | -------- | ------ |
-| 1 | [OneSeatExperiment](apps/lab/articles/event-forge/one-seat-experiment/one-seat-experiment.md) | Two people claim the same seat at the same instant. Does exactly one win? | ✅ green |
+| 1 | OneSeatExperiment | Two people claim the same seat at the same instant. Does exactly one win? | ✅ green |
