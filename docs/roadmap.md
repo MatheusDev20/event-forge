@@ -1,6 +1,6 @@
 # Roadmap — one experiment
 
-_Last updated: 2026-09-04_
+_Last updated: 2026-10-16_
 
 ## The experiment
 
@@ -166,6 +166,24 @@ contention level, with numbers behind it.
 
 ---
 
+## In progress — Slices 4 and 5, started 2026-10-16
+
+Pulled forward from "Not now". The race still does not need to know who is
+racing, and nothing here touches it: the hold path stays anonymous. What
+changed is the goal around the experiment — the organizer console is now being
+built for real, and it cannot create anything without knowing who is signed in.
+
+- **Slice 4 — Identity.** Done for the console: admin-provisioned accounts,
+  database sessions in an httpOnly cookie, and organizer memberships
+  (ADR-0008). Guarding the existing Catalog writes by membership is the next
+  step; until then they are still open.
+- **Slice 5 — Organizer console.** Login works, and an organizer's admins add
+  its people from the Team page (`pnpm org:create` makes the organizer and
+  its first admin). Next: events CRUD, scoped to the signed-in account's
+  organizer.
+
+---
+
 ## Not now
 
 Cut deliberately, so the experiment stays in focus. These keep their original
@@ -174,10 +192,6 @@ numbers because code comments point at them.
 - **Hold expiry.** A *different* experiment — read-time enforcement, sweepers,
   controllable time. Genuinely interesting, and it needs an injectable clock
   before it is testable at all. It comes after the race is proven, not before.
-- **Slice 4 — Identity and authorization.** The race does not need to know who
-  is racing.
-- **Slice 5 — Organizer console.** Events are created over HTTP and seeded;
-  that is enough to publish one and race for its seats.
 - **Checkout, payments, the saga.** A hold is a sufficient claim to prove
   exclusivity. Money adds a workflow, not concurrency.
 - **Notifications.** Nothing here needs telling.

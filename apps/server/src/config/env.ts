@@ -48,6 +48,14 @@ const envShape = z.object({
   DB_POOL_SIZE: z.coerce.number().int().min(1).max(1000).default(50),
 
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
+  /**
+   * Where apps/console is served from. A second CORS origin rather than a list
+   * in WEB_ORIGIN, because the two answer different questions — the console is
+   * the only one that sends a session cookie, and keeping it named means the
+   * day the storefront gets its own login, nobody has to guess which entry in
+   * a comma-separated string was which.
+   */
+  CONSOLE_ORIGIN: z.string().default('http://localhost:3002'),
 
   /* ---------------------------------------------------------------- *
    * Rate limiting

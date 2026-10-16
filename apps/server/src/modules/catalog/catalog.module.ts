@@ -2,11 +2,15 @@ import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import type { Env } from '../../config/env';
+import { IdentityModule } from '../identity';
 import { EventsController } from './api/events.controller';
+import { OrganizerAdminGuard } from './api/organizer-admin.guard';
+import { OrganizersController } from './api/organizers.controller';
 import { VenuesController } from './api/venues.controller';
 import { CatalogService } from './application/catalog.service';
 import { EventEntity } from './infrastructure/entities/event.entity';
 import { OrganizerEntity } from './infrastructure/entities/organizer.entity';
+import { OrganizerMemberEntity } from './infrastructure/entities/organizer-member.entity';
 import { PriceTierEntity } from './infrastructure/entities/price-tier.entity';
 import { PriceTierSectionEntity } from './infrastructure/entities/price-tier-section.entity';
 import { SeatEntity } from './infrastructure/entities/seat.entity';
@@ -17,6 +21,7 @@ import { VenueEntity } from './infrastructure/entities/venue.entity';
 import { EventsRepository } from './infrastructure/events.repository';
 import { HeroImageStorage } from './infrastructure/hero-image.storage';
 import { LocalHeroImageStorage } from './infrastructure/local-hero-image.storage';
+import { OrganizersRepository } from './infrastructure/organizers.repository';
 import { VenuesRepository } from './infrastructure/venues.repository';
 import { S3HeroImageStorage } from './infrastructure/s3/event-hero/s3-hero-image.storage';
 
@@ -62,9 +67,13 @@ const heroImageStorageProvider = {
  */
 @Module({
   imports: [
+    // For the guards the organizer routes sit behind, and for IdentityService,
+    // which creates a member's account.
+    IdentityModule,
     TypeOrmModule.forFeature([
       EventEntity,
       OrganizerEntity,
+      OrganizerMemberEntity,
       PriceTierEntity,
       PriceTierSectionEntity,
       SeatEntity,
@@ -74,11 +83,13 @@ const heroImageStorageProvider = {
       VenueEntity,
     ]),
   ],
-  controllers: [EventsController, VenuesController],
+  controllers: [EventsController, OrganizersController, VenuesController],
   providers: [
     CatalogService,
     EventsRepository,
     VenuesRepository,
+    OrganizersRepository,
+    OrganizerAdminGuard,
     heroImageStorageProvider,
   ],
   exports: [CatalogService],

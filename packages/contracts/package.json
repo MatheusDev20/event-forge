@@ -17,6 +17,10 @@
       "types": "./dist/catalog/index.d.ts",
       "default": "./dist/catalog/index.js"
     },
+    "./identity": {
+      "types": "./dist/identity/index.d.ts",
+      "default": "./dist/identity/index.js"
+    },
     "./inventory": {
       "types": "./dist/inventory/index.d.ts",
       "default": "./dist/inventory/index.js"

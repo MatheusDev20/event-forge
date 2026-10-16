@@ -45,6 +45,11 @@ type RequestOptions = {
   query?: Record<string, string | number | undefined>;
 };
 
+type SendOptions = RequestOptions & {
+  method: 'GET' | 'POST';
+  body?: unknown;
+};
+
 /**
  * The single door to the API, from server components and the browser alike.
  *
@@ -55,6 +60,10 @@ type RequestOptions = {
  * an event and sees it still marked "draft" has been told a lie by their own
  * console, and no revalidation window makes that acceptable.
  *
+ * They now disagree about credentials too: every request from here carries the
+ * session cookie (`credentials: 'include'`), because nearly every console
+ * route needs it, and the storefront sends none.
+ *
  * Extracting the shared half would mean parameterising exactly the behaviour
  * that must not be shared. If a third consumer appears, revisit.
  *
@@ -63,10 +72,31 @@ type RequestOptions = {
  * named — instead of surfacing as `undefined` inside a component. That parse
  * is the entire reason @repo/contracts exists.
  */
-export async function apiGet<T>(
+export function apiGet<T>(
   path: string,
   schema: ZodType<T>,
   options: RequestOptions = {},
+): Promise<T> {
+  return send(path, schema, { ...options, method: 'GET' });
+}
+
+export function apiPost<T>(
+  path: string,
+  schema: ZodType<T>,
+  body: unknown,
+): Promise<T> {
+  return send(path, schema, { method: 'POST', body });
+}
+
+/** For the endpoints that answer 204 — there is no body to parse. */
+export async function apiPostNoContent(path: string): Promise<void> {
+  await send(path, null, { method: 'POST' });
+}
+
+async function send<T>(
+  path: string,
+  schema: ZodType<T> | null,
+  options: SendOptions,
 ): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
 
@@ -79,7 +109,18 @@ export async function apiGet<T>(
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { accept: 'application/json' },
+      method: options.method,
+      headers: {
+        accept: 'application/json',
+        ...(options.body !== undefined
+          ? { 'content-type': 'application/json' }
+          : {}),
+      },
+      body:
+        options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      // The API is another origin (another port, locally), so the browser
+      // only attaches the session cookie when told to.
+      credentials: 'include',
       // `no-store`, not a revalidate window: see the note above.
       ...(IS_SERVER ? { cache: 'no-store' as const } : {}),
     });
@@ -100,6 +141,8 @@ export async function apiGet<T>(
           `API returned ${response.status} with an unrecognised body`,
         );
   }
+
+  if (schema === null) return undefined as T;
 
   const parsed = schema.safeParse(payload);
 

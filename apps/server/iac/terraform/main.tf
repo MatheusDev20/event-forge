@@ -15,6 +15,9 @@ provider "aws" {
   # CI sets TF_VAR_aws_profile="" so this resolves to null and the provider
   # falls back to the default credential chain (env vars on the runner).
   profile = var.aws_profile != "" ? var.aws_profile : null
+  # Hard guard: refuse to plan/apply against any other account, regardless of
+  # which profile or env credentials ended up being used.
+  allowed_account_ids = var.allowed_account_ids
 }
 
 ##############################################
@@ -25,7 +28,7 @@ data "aws_region" "current" {}
 
 locals {
   stage        = terraform.workspace == "default" ? "prod" : terraform.workspace
-  service_name = "js_full_stack_template"
+  service_name = "event_forge"
   lambda_name  = "${local.service_name}__${local.stage}"
 
   # esbuild writes exactly one file here (dist-lambda/index.js). The module runs

@@ -4,6 +4,7 @@ import { DataSource, type DataSourceOptions } from 'typeorm';
 import { join } from 'node:path';
 import { EventEntity } from '../modules/catalog/infrastructure/entities/event.entity';
 import { OrganizerEntity } from '../modules/catalog/infrastructure/entities/organizer.entity';
+import { OrganizerMemberEntity } from '../modules/catalog/infrastructure/entities/organizer-member.entity';
 import { PriceTierEntity } from '../modules/catalog/infrastructure/entities/price-tier.entity';
 import { PriceTierSectionEntity } from '../modules/catalog/infrastructure/entities/price-tier-section.entity';
 import { SeatEntity } from '../modules/catalog/infrastructure/entities/seat.entity';
@@ -14,6 +15,8 @@ import { VenueEntity } from '../modules/catalog/infrastructure/entities/venue.en
 import { AllocationEntity } from '../modules/inventory/infrastructure/entities/allocation.entity';
 import { HoldEntity } from '../modules/inventory/infrastructure/entities/hold.entity';
 import { HoldLineEntity } from '../modules/inventory/infrastructure/entities/hold-line.entity';
+import { AccountEntity } from '../modules/identity/infrastructure/entities/account.entity';
+import { SessionEntity } from '../modules/identity/infrastructure/entities/session.entity';
 
 loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
 
@@ -27,17 +30,20 @@ loadDotenv({ path: join(__dirname, '..', '..', '.env'), quiet: true });
  * boots without Nest.
  */
 export const entities = [
+  AccountEntity,
   AllocationEntity,
   EventEntity,
   HoldEntity,
   HoldLineEntity,
   OrganizerEntity,
+  OrganizerMemberEntity,
   PriceTierEntity,
   PriceTierSectionEntity,
   SeatEntity,
   SeatMapEntity,
   SeatRowEntity,
   SectionEntity,
+  SessionEntity,
   VenueEntity,
 ];
 

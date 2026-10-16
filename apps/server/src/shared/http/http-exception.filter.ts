@@ -14,6 +14,8 @@ const SERVER_ERROR_THRESHOLD: number = HttpStatus.INTERNAL_SERVER_ERROR;
 
 const STATUS_CODES: Record<number, string> = {
   [HttpStatus.BAD_REQUEST]: ERROR_CODES.VALIDATION_FAILED,
+  [HttpStatus.UNAUTHORIZED]: ERROR_CODES.UNAUTHENTICATED,
+  [HttpStatus.FORBIDDEN]: ERROR_CODES.FORBIDDEN,
   [HttpStatus.NOT_FOUND]: ERROR_CODES.NOT_FOUND,
   [HttpStatus.CONFLICT]: ERROR_CODES.CONFLICT,
   // Multer raises this on its own when an upload exceeds `limits.fileSize`, so

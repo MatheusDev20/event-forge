@@ -1,6 +1,6 @@
 # Domain Model — Glossary & Context Map
 
-_Last updated: 2026-08-22_
+_Last updated: 2026-10-16_
 
 The vocabulary here is binding: these words mean exactly this in code, in the
 database, and in conversation. If a concept needs a new word, add it here first.
@@ -40,7 +40,11 @@ where we keep complexity **out**.
 - **Event** — a happening at a Venue on a date. Has a lifecycle:
   `draft → published → on_sale → closed → cancelled`. Only `on_sale` events
   accept holds.
-- **Organizer** — the account that owns an Event.
+- **Organizer** — the company or brand that owns an Event. Not a login:
+  accounts act for it through a Membership.
+- **Membership** — an account's place in an Organizer, as `admin` (manages
+  that organizer's people, and no other's) or `member`. Catalog's row,
+  holding Identity's account id (ADR-0008).
 - **Venue** — a physical place with a **Seat Map**.
 - **Seat Map** — the seating layout of a Venue: sections, rows, seats. Belongs
   to the Venue and is reused across Events.
@@ -81,8 +85,11 @@ Owns the money-shaped workflow and the saga across Inventory and Payment.
 
 ### Identity — _who is acting_
 
-- **Account** — a person's login.
+- **Account** — a person's login. Provided by an organizer's admin, never
+  self-created.
 - **Role** — `attendee | organizer | admin`.
+- **Session** — one signed-in browser: a server-side row, carried as an
+  httpOnly cookie. Ends at logout or after a fixed seven days.
 
 Other contexts hold an account id and nothing else. No context reaches into
 Identity's tables.

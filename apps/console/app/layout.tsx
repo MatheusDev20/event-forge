@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import { Space_Grotesk } from 'next/font/google';
 import localFont from 'next/font/local';
 import './styles/global.css';
-import { ConsoleHeader } from './components/console-header';
-import { ConsoleNav } from './components/console-nav';
 import { Providers } from './providers';
 import { themeScript } from './lib/theme';
 
@@ -32,12 +30,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Sidebar and content, rather than the storefront's single centred column.
+ * Fonts, theme and providers — nothing visible.
  *
- * The two apps are the same system and share every token, but they are not the
- * same shape: a visitor arrives to browse one thing, an organizer arrives to
- * move between standing sections. The sidebar collapses above the content
- * below `md`, where a persistent rail costs more width than it earns.
+ * The shell an organizer works in (header, sidebar) lives in
+ * `(console)/layout.tsx`, and the login page in
+ * `(auth)/layout.tsx`. Route groups rather than one layout with conditionals,
+ * because the two are different pages, not one page in two states: the
+ * signed-out ones must render without a session, and the shell must not render
+ * until it has one.
  */
 export default function RootLayout({
   children,
@@ -51,13 +51,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable}`}
       >
-        <Providers>
-          <ConsoleHeader />
-          <div className="mx-auto flex max-w-[90rem] flex-col gap-8 px-4 py-6 md:flex-row md:px-8 md:py-8">
-            <ConsoleNav className="w-full shrink-0 md:sticky md:top-25 md:w-60 md:self-start" />
-            <main className="min-w-0 flex-1">{children}</main>
-          </div>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -7,12 +7,19 @@ import {
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { DomainEventBus } from '../../../shared/events';
+import { IdentityService } from '../../identity';
 import type { EventStatus } from '../domain/event';
 import { acceptHeroImage } from '../domain/hero-image';
 import type { HeroImageRejection, HeroImageUpload } from '../domain/hero-image';
 import type { ListEventsCriteria } from '../domain/list-events-criteria';
 import type { ListVenuesCriteria } from '../domain/list-venues-criteria';
 import type { NewEvent } from '../domain/new-event';
+import type {
+  MemberOrganizer,
+  NewOrganizerMember,
+  OrganizerMember,
+  OrganizerMemberRole,
+} from '../domain/organizer';
 import { onSaleBlocker, publishBlocker } from '../domain/publish-event';
 import type { OnSaleBlocker, PublishBlocker } from '../domain/publish-event';
 import type { SeatMapLayout, VenueSeatMap } from '../domain/seat-map';
@@ -20,6 +27,7 @@ import type { EventEntity } from '../infrastructure/entities/event.entity';
 import type { VenueEntity } from '../infrastructure/entities/venue.entity';
 import { EventsRepository } from '../infrastructure/events.repository';
 import { HeroImageStorage } from '../infrastructure/hero-image.storage';
+import { OrganizersRepository } from '../infrastructure/organizers.repository';
 import { VenuesRepository } from '../infrastructure/venues.repository';
 
 export type EventPage = {
@@ -52,7 +60,105 @@ export class CatalogService {
     private readonly heroImages: HeroImageStorage,
     private readonly bus: DomainEventBus,
     private readonly venues: VenuesRepository,
+    private readonly organizers: OrganizersRepository,
+    private readonly identity: IdentityService,
   ) {}
+
+  /* -------------------------------------------------------------- *
+   * Organizers and their members — provisioned, never self-served
+   * (ADR-0008)
+   * -------------------------------------------------------------- */
+
+  /**
+   * An organizer with its first admin. Only `pnpm org:create` calls this:
+   * there is no route that creates organizers.
+   */
+  createOrganizerWithAdmin(
+    name: string,
+    adminAccountId: string,
+  ): Promise<MemberOrganizer> {
+    return this.organizers.createWithAdmin(name, adminAccountId);
+  }
+
+  /** What OrganizerAdminGuard asks: is this account an admin *of this* organizer? */
+  roleIn(
+    organizerId: string,
+    accountId: string,
+  ): Promise<OrganizerMemberRole | null> {
+    return this.organizers.roleOf(organizerId, accountId);
+  }
+
+  /** The organizers an account acts for — what the console's shell asks first. */
+  listOrganizersFor(accountId: string): Promise<MemberOrganizer[]> {
+    return this.organizers.listForAccount(accountId);
+  }
+
+  /**
+   * Memberships are Catalog's; names and emails are Identity's. Two reads,
+   * joined here, because no query may reach into the other context's tables
+   * (docs/domain-model.md).
+   */
+  async listOrganizerMembers(organizerId: string): Promise<OrganizerMember[]> {
+    await this.requireOrganizer(organizerId);
+
+    const memberships = await this.organizers.listMemberships(organizerId);
+    const accounts = new Map(
+      (
+        await this.identity.findAccounts(memberships.map((m) => m.accountId))
+      ).map((account) => [account.id, account]),
+    );
+
+    return memberships.flatMap(({ accountId, role }) => {
+      const account = accounts.get(accountId);
+
+      // No foreign key guards `account_id` (ADR-0001), so a deleted account
+      // leaves a membership pointing at nothing. Listing it would show a
+      // person with no name; skipping it shows the truth.
+      return account
+        ? [{ accountId, name: account.name, email: account.email, role }]
+        : [];
+    });
+  }
+
+  /**
+   * Creates a person's account and puts them in the organizer.
+   *
+   * Two writes in two contexts, so not one transaction — Identity's account
+   * and Catalog's membership cannot share one without Catalog reaching into
+   * Identity's persistence. The order keeps the failure window narrow: the
+   * organizer is checked first, so the only way to strand an account is for
+   * the organizer to be deleted in the milliseconds between the two writes.
+   * A stranded account can log in and is told it belongs to no organizer;
+   * nothing is corrupted.
+   */
+  async addOrganizerMember(
+    organizerId: string,
+    member: NewOrganizerMember,
+  ): Promise<OrganizerMember> {
+    await this.requireOrganizer(organizerId);
+
+    const account = await this.identity.createAccount({
+      name: member.name,
+      email: member.email,
+      password: member.password,
+      role: 'organizer',
+    });
+
+    await this.organizers.addMember(organizerId, account.id, member.role);
+
+    return {
+      accountId: account.id,
+      name: account.name,
+      email: account.email,
+      role: member.role,
+    };
+  }
+
+  private async requireOrganizer(organizerId: string): Promise<void> {
+    if (!(await this.organizers.exists(organizerId))) {
+      throw new NotFoundException(`No organizer with id "${organizerId}"`);
+    }
+  }
 
   async listPublicEvents(criteria: ListEventsCriteria): Promise<EventPage> {
     const { items, total } = await this.events.listPublic(criteria);

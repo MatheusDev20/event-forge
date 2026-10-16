@@ -7,6 +7,7 @@ import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { validateEnv, type Env } from './config/env';
 import { HealthController } from './health.controller';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { IdentityModule } from './modules/identity';
 import { InventoryModule } from './modules/inventory';
 import { EventsModule } from './shared/events';
 
@@ -87,6 +88,7 @@ import { EventsModule } from './shared/events';
     // Global, and registered before the contexts that use it: Inventory
     // subscribes to the bus in its own onModuleInit.
     EventsModule,
+    IdentityModule,
     CatalogModule,
     InventoryModule,
   ],

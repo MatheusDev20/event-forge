@@ -33,6 +33,18 @@ export const ERROR_CODES = {
   CONFLICT: 'CONFLICT',
   RATE_LIMITED: 'RATE_LIMITED',
   /**
+   * No session, or one that has expired. The console's answer to it is always
+   * the same — go to the login page — so it gets its own code rather than
+   * riding on a status number a proxy might also produce.
+   */
+  UNAUTHENTICATED: 'UNAUTHENTICATED',
+  /**
+   * Signed in, and not allowed: acting for an organizer the account is not a
+   * member of. Distinct from UNAUTHENTICATED because logging in again would
+   * not help.
+   */
+  FORBIDDEN: 'FORBIDDEN',
+  /**
    * The request body was larger than the endpoint accepts — an upload over the
    * size limit, in practice. Distinct from VALIDATION_FAILED because a client
    * can act on it: the fix is a smaller file, not a corrected field.

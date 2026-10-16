@@ -57,8 +57,13 @@ async function bootstrap() {
     },
   });
 
+  // `credentials: true` is what lets the console's fetches carry the session
+  // cookie; it requires naming origins exactly, never `*`.
   app.enableCors({
-    origin: config.get('WEB_ORIGIN', { infer: true }),
+    origin: [
+      config.get('WEB_ORIGIN', { infer: true }),
+      config.get('CONSOLE_ORIGIN', { infer: true }),
+    ],
     credentials: true,
   });
 

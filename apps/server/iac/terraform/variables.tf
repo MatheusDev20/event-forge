@@ -4,6 +4,12 @@ variable "aws_profile" {
   default     = "matheus"
 }
 
+variable "allowed_account_ids" {
+  description = "AWS account IDs Terraform is allowed to operate on. Any other account makes plan/apply fail. Defaults to the 'matheus' account."
+  type        = list(string)
+  default     = ["507754063151"]
+}
+
 variable "aws_region" {
   description = "Region the service is deployed to."
   type        = string
